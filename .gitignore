@@ -34,3 +34,6 @@ browser_data/
 # Temp files
 *.tmp
 tmp_*.json
+
+# GCP keys
+key.json

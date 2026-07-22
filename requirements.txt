@@ -1,0 +1,31 @@
+requests>=2.31.0
+python-dotenv>=1.0.0
+markdown>=3.5.0
+beautifulsoup4>=4.12.0
+markdownify>=0.13.0
+playwright>=1.40.0
+feedparser>=6.0.0
+
+# === Step 1: Database Foundation ===
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+psycopg2-binary>=2.9.0
+redis>=5.0.0
+celery>=5.3.0
+cryptography>=42.0.0
+
+# === Step 3: 2Captcha ===
+2captcha-python>=1.0.0
+
+# === Step 6: RAG ===
+pgvector>=0.2.0
+
+# === Step 7: Dashboard ===
+fastapi>=0.109.0
+jinja2>=3.1.0
+python-multipart>=0.0.6
+uvicorn>=0.25.0
+
+# === Step 2: Discovery ===
+httpx>=0.26.0
+duckduckgo-search>=7.0.0

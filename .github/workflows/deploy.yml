@@ -1,0 +1,64 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: gaper-internship
+  SERVICE_NAME: musadiq-backlink
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} .
+          docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --image gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} \
+            --region $REGION \
+            --project $PROJECT_ID \
+            --platform managed \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 2 \
+            --timeout 300 \
+            --allow-unauthenticated \
+            --set-env-vars="GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
+            --set-env-vars="SERPER_API_KEY=${{ secrets.SERPER_API_KEY }}" \
+            --set-env-vars="TWOCAPTCHA_API_KEY=${{ secrets.TWOCAPTCHA_API_KEY }}" \
+            --set-env-vars="DEVTO_API_KEY=${{ secrets.DEVTO_API_KEY }}" \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --set-env-vars="REDIS_URL=${{ secrets.REDIS_URL }}" \
+            --set-env-vars="VAULT_ENCRYPTION_KEY=${{ secrets.VAULT_ENCRYPTION_KEY }}"
+
+      - name: Show deployment URL
+        run: |
+          echo "Deployed to:"
+          gcloud run services describe $SERVICE_NAME --region $REGION --format='value(status.url)'

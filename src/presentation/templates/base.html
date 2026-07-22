@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Backlink AI Dashboard{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#090d16',
+                        darkCard: 'rgba(22, 28, 45, 0.45)',
+                        darkBorder: 'rgba(255, 255, 255, 0.08)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.3);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.4);
+        }
+
+        /* Glassmorphism Utilities */
+        .glass-card {
+            background: rgba(22, 28, 45, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        
+        .glass-card:hover {
+            border-color: rgba(99, 102, 241, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.05);
+        }
+
+        /* Premium Buttons */
+        .btn-premium-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-premium-primary:hover {
+            box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.45);
+            transform: translateY(-1px);
+        }
+        .btn-premium-primary:active {
+            transform: scale(0.97);
+        }
+
+        .btn-premium-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-premium-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+        .btn-premium-secondary:active {
+            transform: scale(0.97);
+        }
+
+        .btn-premium-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.25);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-premium-success:hover {
+            box-shadow: 0 6px 20px 0 rgba(16, 185, 129, 0.4);
+            transform: translateY(-1px);
+        }
+        .btn-premium-success:active {
+            transform: scale(0.97);
+        }
+
+        .btn-premium-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.25);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-premium-danger:hover {
+            box-shadow: 0 6px 20px 0 rgba(239, 68, 68, 0.4);
+            transform: translateY(-1px);
+        }
+        .btn-premium-danger:active {
+            transform: scale(0.97);
+        }
+
+        /* Nav Link Premium Styles */
+        .sidebar-link {
+            transition: all 0.2s ease-in-out;
+            border-left: 3px solid transparent;
+        }
+        .sidebar-link:hover {
+            background: rgba(255, 255, 255, 0.03);
+            color: #fff;
+            padding-left: 1.25rem;
+        }
+        .sidebar-link.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.03) 100%);
+            color: #c084fc;
+            border-left-color: #818cf8;
+            font-weight: 600;
+        }
+
+        /* Modern input styling */
+        .premium-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transition: all 0.3s;
+        }
+        .premium-input:focus {
+            border-color: #818cf8;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+    </style>
+</head>
+<body class="bg-[#0b0e17] text-gray-200 min-h-screen overflow-x-hidden relative">
+    <!-- Ambient background glows -->
+    <div class="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] rounded-full bg-purple-900/10 blur-[120px] pointer-events-none"></div>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-[#0e1322]/80 backdrop-blur-lg border-r border-white/5 min-h-screen fixed z-30 flex flex-col justify-between">
+            <div>
+                <!-- Brand Header -->
+                <div class="p-6 border-b border-white/5">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent font-extrabold tracking-tight">🔗 Backlink AI</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">Gaper.io Outreach System</p>
+                </div>
+                
+                <!-- Navigation -->
+                <nav class="p-4 space-y-1.5 flex-1">
+                    <a href="/" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white {% if request.url.path == '/' %}active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"></path>
+                        </svg>
+                        <span>Dashboard</span>
+                    </a>
+                    
+                    <a href="/prospects" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white {% if '/prospects' in request.url.path %}active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002-2h2a2 2 0 002 2m-6 9l2 2 4-4"></path>
+                        </svg>
+                        <span>Prospects</span>
+                    </a>
+                    
+                    <a href="/urls" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white {% if '/urls' in request.url.path %}active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                        </svg>
+                        <span>Tracked URLs</span>
+                    </a>
+                    
+                    <a href="/activity" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white {% if '/activity' in request.url.path %}active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Activity Log</span>
+                    </a>
+                    
+                    <a href="/sessions" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white {% if '/sessions' in request.url.path %}active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                        </svg>
+                        <span>Sessions</span>
+                    </a>
+                    <a href="/platforms" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white {% if '/platforms' in request.url.path %}active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
+                        <span>Platforms</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <!-- Sidebar Footer Info -->
+            <div class="p-6 border-t border-white/5 bg-[#0a0d17]/40 text-center">
+                <span class="text-[10px] tracking-widest text-gray-600 font-bold uppercase">System Active</span>
+                <div class="flex items-center justify-center gap-2 mt-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-xs text-gray-400 font-medium">All engines ready</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="ml-64 flex-1 min-w-0 p-8 min-h-screen relative z-10">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Modern Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3"></div>
+
+    <script>
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            // Icon definitions
+            let icon = '';
+            let styleClasses = '';
+            
+            if (type === 'success') {
+                icon = `<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                styleClasses = 'bg-[#0f1b22] border-emerald-500/30 text-emerald-300';
+            } else if (type === 'error') {
+                icon = `<svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                styleClasses = 'bg-[#1b111a] border-rose-500/30 text-rose-300';
+            } else {
+                icon = `<svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                styleClasses = 'bg-[#12162e] border-indigo-500/30 text-indigo-300';
+            }
+            
+            toast.className = `flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border backdrop-blur-xl transition-all duration-300 translate-y-2 opacity-0 ${styleClasses}`;
+            toast.innerHTML = `
+                ${icon}
+                <span class="text-sm font-semibold">${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+            
+            // Remove function
+            const removeToast = () => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            };
+            
+            setTimeout(removeToast, 4000);
+            toast.onclick = removeToast;
+        }
+
+        // API call helper
+        async function apiCall(url, method = 'POST') {
+            try {
+                const response = await fetch(url, { method });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message || 'Action completed successfully!');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.error || 'Request failed', 'error');
+                }
+            } catch (error) {
+                showToast('A network error occurred', 'error');
+            }
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

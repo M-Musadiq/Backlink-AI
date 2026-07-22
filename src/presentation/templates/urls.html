@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">Tracked URLs</h2>
+            <p class="text-gray-400 mt-1 text-sm font-medium">All threads and targets discovered in the outreach campaign</p>
+        </div>
+    </div>
+
+    <!-- URLs Table -->
+    <div class="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-white/5 bg-slate-950/20 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                        <th class="px-6 py-4">ID</th>
+                        <th class="px-6 py-4">Platform</th>
+                        <th class="px-6 py-4">Thread Title</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Source Keyword</th>
+                        <th class="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5 text-sm text-gray-300">
+                    {% for u in urls %}
+                    <tr class="hover:bg-white/[0.02] transition-colors">
+                        <td class="px-6 py-4 font-mono text-gray-500">#{{ u.id }}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-gray-300">
+                                {{ u.domain[:25] }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 max-w-md">
+                            <div class="font-bold text-white truncate" title="{{ u.title }}">{{ u.title }}</div>
+                            <div class="text-xs text-gray-500 truncate mt-0.5" title="{{ u.url }}">{{ u.url }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if u.status == 'discovered' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">Discovered</span>
+                            {% elif u.status == 'scraped' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Scraped</span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-400 border border-white/10">{{ u.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-xs font-medium text-indigo-400">
+                            {{ u.source or 'Manual' }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            {% if u.status == 'discovered' %}
+                            <button onclick="scrapeUrl({{ u.id }}, this)" class="btn-premium-secondary text-xs font-bold py-1.5 px-3 rounded-lg inline-flex items-center gap-1 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 mr-2" title="Scrape this URL">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                Scrape
+                            </button>
+                            {% endif %}
+                            <a href="{{ u.url }}" target="_blank" class="btn-premium-secondary text-xs font-bold py-1.5 px-3.5 rounded-lg inline-flex items-center gap-1" title="Open target URL">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                Open URL
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not urls %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                            <svg class="w-12 h-12 text-gray-700 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"></path></svg>
+                            <p class="text-sm font-semibold">No URLs tracked yet.</p>
+                            <p class="text-xs text-gray-600 mt-1">Run discovery to search for threads and populate targets.</p>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function scrapeUrl(urlId, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Scraping...';
+    try {
+        const res = await fetch(`/api/scrape/${urlId}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg> Done';
+            btn.classList.remove('text-emerald-400', 'border-emerald-500/30');
+            btn.classList.add('text-cyan-400');
+            const row = btn.closest('tr');
+            const statusCell = row.querySelector('td:nth-child(4)');
+            statusCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Scraped</span>';
+            btn.remove();
+        } else {
+            btn.innerHTML = 'Failed: ' + (data.error || 'Unknown');
+            btn.classList.remove('text-emerald-400');
+            btn.classList.add('text-red-400');
+        }
+    } catch (e) {
+        btn.innerHTML = 'Error';
+        btn.classList.remove('text-emerald-400');
+        btn.classList.add('text-red-400');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">Outreach Prospects</h2>
+            <p class="text-gray-400 mt-1 text-sm font-medium">Manage and review threads discovered for potential backlinks</p>
+        </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        <a href="/prospects" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if not current_status %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            All
+        </a>
+        <a href="/prospects?status=discovered" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'discovered' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Discovered
+        </a>
+        <a href="/prospects?status=relevant" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'relevant' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Relevant
+        </a>
+        <a href="/prospects?status=drafted" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'drafted' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Drafted
+        </a>
+        <a href="/prospects?status=approved" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'approved' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Approved
+        </a>
+        <a href="/prospects?status=posted" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'posted' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Posted
+        </a>
+        <a href="/prospects?status=post_failed" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'post_failed' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Failed
+        </a>
+        <a href="/prospects?status=archived" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'archived' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Archived
+        </a>
+    </div>
+
+    <!-- Prospects Table -->
+    <div class="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b border-white/5 bg-slate-950/20 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                    <th class="px-4 py-3 w-16">ID</th>
+                    <th class="px-4 py-3 w-32">Platform</th>
+                    <th class="px-4 py-3">Thread Title</th>
+                    <th class="px-4 py-3 w-28">Status</th>
+                    <th class="px-4 py-3 w-20">Score</th>
+                    <th class="px-4 py-3 w-40">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 text-sm text-gray-300">
+                {% for p in prospects %}
+                <tr class="hover:bg-white/[0.02] transition-colors">
+                    <td class="px-4 py-3 font-mono text-gray-500">#{{ p.id }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-gray-300">
+                            {{ p.domain[:20] }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="font-bold text-white truncate max-w-xs" title="{{ p.title }}">{{ p.title }}</div>
+                        <div class="text-xs text-gray-500 truncate max-w-xs mt-0.5" title="{{ p.url }}">{{ p.url }}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                            {% if p.status == 'discovered' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">Discovered</span>
+                            {% elif p.status == 'relevant' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Relevant</span>
+                            {% elif p.status == 'drafted' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Drafted</span>
+                            {% elif p.status == 'approved' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">Approved</span>
+                            {% elif p.status == 'posted' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Posted</span>
+                            {% elif p.status == 'post_failed' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 cursor-help" title="{{ p.post_error|e }}">Failed</span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-400 border border-white/10">{{ p.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if p.relevance_score > 0 %}
+                                <div class="flex items-center gap-2">
+                                    {% if p.relevance_score >= 7 %}
+                                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                        <span class="font-bold text-emerald-400">{{ p.relevance_score }}/10</span>
+                                    {% elif p.relevance_score >= 4 %}
+                                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                        <span class="font-bold text-amber-400">{{ p.relevance_score }}/10</span>
+                                    {% else %}
+                                        <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                                        <span class="font-bold text-rose-400">{{ p.relevance_score }}/10</span>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="text-gray-600 font-semibold">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex gap-2 justify-end items-center flex-wrap">
+                                {% if p.status == 'discovered' %}
+                                <button onclick="evaluateProspect({{ p.id }})" class="btn-premium-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 hover:shadow-lg" title="Evaluate relevance">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Evaluate
+                                </button>
+                                {% endif %}
+                                
+                                {% if p.status == 'relevant' %}
+                                <button onclick="draftReply({{ p.id }})" class="btn-premium-success text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Draft reply">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    Draft
+                                </button>
+                                {% endif %}
+                                
+                                {% if p.status == 'drafted' %}
+                                <button onclick="reviewDraft(this, {{ p.id }})" data-draft="{{ p.draft_content }}" class="btn-premium-secondary text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Review draft">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    Review
+                                </button>
+                                <button onclick="approveProspect({{ p.id }})" class="btn-premium-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Approve for posting">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                    Approve
+                                </button>
+                                <button onclick="archiveProspect({{ p.id }})" class="btn-premium-danger text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Archive">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    Archive
+                                </button>
+                                {% endif %}
+
+                                {% if p.status == 'approved' %}
+                                <button onclick="postProspect({{ p.id }})" class="btn-premium-success text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Post now">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                    Post
+                                </button>
+                                <button onclick="archiveProspect({{ p.id }})" class="btn-premium-danger text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Archive">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    Archive
+                                </button>
+                                {% endif %}
+
+                                {% if p.status == 'post_failed' %}
+                                <button onclick="postProspect({{ p.id }})" class="btn-premium-success text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Retry posting">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.2M7 9a7 7 0 1111.59 5.25L7 9z"></path></svg>
+                                    Retry
+                                </button>
+                                <button onclick="archiveProspect({{ p.id }})" class="btn-premium-danger text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1" title="Archive">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    Archive
+                                </button>
+                                {% endif %}
+                                
+                                <a href="{{ p.url }}" target="_blank" class="btn-premium-secondary text-xs font-bold py-1.5 px-2.5 rounded-lg flex items-center justify-center" title="Open thread in new tab">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% if p.status == 'post_failed' and p.post_error %}
+                    <tr class="bg-rose-500/[0.03]">
+                        <td colspan="6" class="px-4 py-3 text-xs text-rose-400 border-l-2 border-rose-500">
+                            <span class="font-bold">Error:</span> {{ p.post_error }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% if not prospects %}
+                    <tr>
+                        <td colspan="6" class="px-4 py-12 text-center text-gray-500">
+                            <svg class="w-12 h-12 text-gray-700 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.008 1.24l.885 1.77a2.25 2.25 0 002.007 1.24h1.98a2.25 2.25 0 002.007-1.24l.885-1.77a2.25 2.25 0 012.007-1.24h3.86m-18 0h18a2.25 2.25 0 002.25-2.25V5.25A2.25 2.25 0 0017.25 3H6.75A2.25 2.25 0 004.5 5.25v6a2.25 2.25 0 002.25 2.25z"></path></svg>
+                            <p class="text-sm font-semibold">No prospects found matching this status.</p>
+                            <p class="text-xs text-gray-600 mt-1">Run discovery from the dashboard to fetch new prospects.</p>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+    </div>
+
+    <!-- Draft Preview Modal -->
+    <div id="draft-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 transition-all duration-300 opacity-0">
+        <div class="bg-[#0e1322] border border-white/10 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden transform scale-95 transition-all duration-300">
+            <div class="p-6 border-b border-white/5 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-white">Review & Edit Draft Reply</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Customize the drafted response before approval</p>
+                </div>
+                <button onclick="closeDraftModal()" class="text-gray-500 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 bg-slate-950/30">
+                <textarea id="draft-content" class="w-full p-4 bg-slate-950/80 border border-white/10 rounded-xl text-sm font-mono text-indigo-200 focus:outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/80 scrollbar-thin" rows="12"></textarea>
+            </div>
+            <div class="p-6 border-t border-white/5 flex justify-end gap-3 bg-[#0c101d]">
+                <button onclick="closeDraftModal()" class="btn-premium-secondary px-5 py-2.5 rounded-xl text-sm font-bold">
+                    Cancel
+                </button>
+                <button onclick="saveDraft()" class="btn-premium-secondary px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Save Draft
+                </button>
+                <button onclick="approveFromModal()" class="btn-premium-success text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Approve & Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function evaluateProspect(id) {
+    showToast('Evaluating...', 'info');
+    try {
+        const response = await fetch(`/api/evaluate/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Score: ${data.result.score}/10, Relevant: ${data.result.relevant}`);
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Evaluation failed', 'error');
+        }
+    } catch (error) {
+        showToast('Network error', 'error');
+    }
+}
+
+async function draftReply(id) {
+    showToast('Drafting reply...', 'info');
+    try {
+        const response = await fetch(`/api/draft/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Reply drafted successfully!');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showToast(data.error || 'Drafting failed', 'error');
+        }
+    } catch (error) {
+        showToast('Network error', 'error');
+    }
+}
+
+async function approveProspect(id) {
+    if (confirm('Approve this prospect for posting?')) {
+        await apiCall(`/api/approve/${id}`);
+    }
+}
+
+async function archiveProspect(id) {
+    if (confirm('Archive this prospect?')) {
+        await apiCall(`/api/archive/${id}`);
+    }
+}
+
+async function postProspect(id) {
+    if (!confirm('Post this reply now?')) return;
+    
+    showToast('Posting... please wait (takes ~10 seconds)', 'info');
+    try {
+        const response = await fetch(`/api/post/${id}`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Posted successfully!');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Post failed', 'error');
+        }
+    } catch (error) {
+        showToast('Network error', 'error');
+    }
+}
+
+function closeDraftModal() {
+    const modal = document.getElementById('draft-modal');
+    const content = modal.firstElementChild;
+    modal.classList.add('opacity-0');
+    content.classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }, 300);
+}
+
+let currentProspectId = null;
+
+function reviewDraft(btn, id) {
+    currentProspectId = id;
+    const contentText = btn.getAttribute('data-draft') || '';
+    document.getElementById('draft-content').value = contentText;
+    
+    const modal = document.getElementById('draft-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Animate
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.firstElementChild.classList.remove('scale-95');
+    }, 50);
+}
+
+async function saveDraft() {
+    const contentText = document.getElementById('draft-content').value;
+    try {
+        const response = await fetch(`/api/save-draft/${currentProspectId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({draft: contentText})
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Draft saved!');
+            // Update the button's data attribute in the page dynamically in case modal stays open
+            const btns = document.querySelectorAll(`button[onclick*="reviewDraft"][onclick*="${currentProspectId}"]`);
+            btns.forEach(btn => btn.setAttribute('data-draft', contentText));
+        } else {
+            showToast(data.error || 'Save failed', 'error');
+        }
+    } catch (error) {
+        showToast('Network error', 'error');
+    }
+}
+
+async function approveFromModal() {
+    await saveDraft();
+    await approveProspect(currentProspectId);
+    closeDraftModal();
+}
+</script>
+{% endblock %}

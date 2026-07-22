@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6 animate-fade-in">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">System Activity Log</h2>
+            <p class="text-gray-400 mt-1 text-sm font-medium">Audit logs of recent automated actions and events</p>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-white/5 bg-slate-950/20 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                        <th class="px-6 py-4">Time</th>
+                        <th class="px-6 py-4">Action</th>
+                        <th class="px-6 py-4">Prospect ID</th>
+                        <th class="px-6 py-4">Details</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5 text-sm text-gray-300">
+                    {% for log in logs %}
+                    <tr class="hover:bg-white/[0.02] transition-colors">
+                        <td class="px-6 py-4 text-xs font-semibold text-gray-500">
+                            {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if 'discovered' in log.action %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">{{ log.action }}</span>
+                            {% elif 'evaluated' in log.action or 'relevant' in log.action %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">{{ log.action }}</span>
+                            {% elif 'drafted' in log.action %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">{{ log.action }}</span>
+                            {% elif 'posted' in log.action %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{{ log.action }}</span>
+                            {% elif 'failed' in log.action %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">{{ log.action }}</span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-400 border border-white/10">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if log.prospect_id %}
+                                <a href="/prospects" class="text-indigo-400 hover:text-indigo-300 font-bold hover:underline">#{{ log.prospect_id }}</a>
+                            {% else %}
+                                <span class="text-gray-600">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-xs font-medium text-gray-400 max-w-lg truncate" title="{{ log.details }}">
+                            {{ log.details }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not logs %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+                            <svg class="w-12 h-12 text-gray-700 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            <p class="text-sm font-semibold">No activity logged yet.</p>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

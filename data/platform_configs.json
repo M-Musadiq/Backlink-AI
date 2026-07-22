@@ -1,0 +1,76 @@
+{
+  "platforms": {
+    "reddit.com": {
+      "enabled": true,
+      "search_enabled": true,
+      "post_enabled": true,
+      "scraper_type": "api",
+      "requires_auth": true,
+      "post_method": "api",
+      "rate_limit_seconds": 10,
+      "guidelines_url": "https://www.redditinc.com/policies/content-policy",
+      "serp_site_filter": "site:reddit.com",
+      "last_updated": "2026-07-22T11:17:11.970526+00:00"
+    },
+    "dev.to": {
+      "enabled": true,
+      "search_enabled": false,
+      "post_enabled": false,
+      "scraper_type": "playwright",
+      "requires_auth": true,
+      "post_method": "api",
+      "rate_limit_seconds": 5,
+      "guidelines_url": "https://dev.to/code-of-conduct",
+      "serp_site_filter": "site:dev.to",
+      "last_updated": "2026-07-22T10:23:10.047358"
+    },
+    "hashnode.com": {
+      "enabled": true,
+      "search_enabled": false,
+      "post_enabled": false,
+      "scraper_type": "static",
+      "requires_auth": true,
+      "post_method": "api",
+      "rate_limit_seconds": 5,
+      "guidelines_url": "",
+      "serp_site_filter": "site:hashnode.com",
+      "last_updated": "2026-07-22T10:09:41.630183"
+    },
+    "stackoverflow.com": {
+      "enabled": true,
+      "search_enabled": false,
+      "post_enabled": false,
+      "scraper_type": "static",
+      "requires_auth": true,
+      "post_method": "form_submit",
+      "rate_limit_seconds": 15,
+      "guidelines_url": "https://stackoverflow.com/help/how-to-answer",
+      "serp_site_filter": "site:stackoverflow.com",
+      "last_updated": "2026-07-22T10:22:58.196521"
+    },
+    "medium.com": {
+      "enabled": true,
+      "search_enabled": false,
+      "post_enabled": false,
+      "scraper_type": "playwright",
+      "requires_auth": true,
+      "post_method": "not_supported",
+      "rate_limit_seconds": 10,
+      "guidelines_url": "https://policy.medium.com/medium-rules-30e5502c4eb4",
+      "serp_site_filter": "site:medium.com",
+      "last_updated": "2026-07-22T10:22:54.936200"
+    },
+    "news.ycombinator.com": {
+      "enabled": true,
+      "search_enabled": false,
+      "post_enabled": false,
+      "scraper_type": "api",
+      "requires_auth": true,
+      "post_method": "form_submit",
+      "rate_limit_seconds": 30,
+      "guidelines_url": "https://news.ycombinator.com/newsguidelines.html",
+      "serp_site_filter": "site:news.ycombinator.com",
+      "last_updated": "2026-07-22T10:22:53.261149"
+    }
+  }
+}

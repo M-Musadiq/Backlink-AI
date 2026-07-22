@@ -4,9 +4,8 @@ import json
 from typing import Dict, Optional
 from sqlalchemy.orm import Session
 
-from src.infrastructure.gemini_service import GeminiLLMService
+from src.infrastructure.llm_factory import get_llm
 from src.infrastructure.repositories.guidelines_repo import GuidelinesRepository
-from src.config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ class RelevanceNode:
 
     def __init__(self, session: Session):
         self._session = session
-        self._llm = GeminiLLMService(api_key=GEMINI_API_KEY)
+        self._llm = get_llm()
 
     def evaluate(
         self,

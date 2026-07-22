@@ -5,8 +5,7 @@ from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from src.infrastructure.gemini_service import GeminiLLMService
-from src.config import GEMINI_API_KEY
+from src.infrastructure.llm_factory import get_llm
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class RAGRetrieval:
 
     def __init__(self, session: Session):
         self._session = session
-        self._llm = GeminiLLMService(api_key=GEMINI_API_KEY)
+        self._llm = get_llm()
 
     def embed_and_store(self, title: str, content: str, url: str = "") -> int:
         """

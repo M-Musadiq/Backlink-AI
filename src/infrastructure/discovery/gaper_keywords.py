@@ -6,7 +6,7 @@ sys.path.insert(0, ".")
 
 import logging
 from typing import List
-from src.infrastructure.gemini_service import GeminiLLMService
+from src.infrastructure.llm_factory import get_llm
 from src.infrastructure.scrapers.static_scraper import StaticScraper
 from src.config import GEMINI_API_KEY
 
@@ -43,7 +43,7 @@ Content:
 def extract_keywords_from_gaper() -> List[str]:
     """Scrape gaper.io and extract search keywords using LLM."""
     scraper = StaticScraper(timeout=20)
-    llm = GeminiLLMService(api_key=GEMINI_API_KEY)
+    llm = get_llm()
 
     all_content = []
     for url in GAPER_PAGES:

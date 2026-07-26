@@ -77,6 +77,12 @@ class RedditPoster(BasePlatformPoster):
         else:
             browser_kwargs["user_data_dir"] = None
 
+        from src.infrastructure.proxy_service import proxy_service
+        proxy_settings = proxy_service.get_browser_use_proxy_settings()
+        if proxy_settings:
+            browser_kwargs["proxy"] = proxy_settings
+            logger.info(f"Reddit: using proxy {proxy_settings.server}")
+
         browser_profile = BrowserProfile(**browser_kwargs)
         browser = Browser(browser_profile=browser_profile)
 

@@ -2,7 +2,7 @@
   "platforms": {
     "reddit.com": {
       "enabled": true,
-      "search_enabled": true,
+      "search_enabled": false,
       "post_enabled": true,
       "scraper_type": "api",
       "requires_auth": true,
@@ -10,7 +10,7 @@
       "rate_limit_seconds": 10,
       "guidelines_url": "https://www.redditinc.com/policies/content-policy",
       "serp_site_filter": "site:reddit.com",
-      "last_updated": "2026-07-22T11:17:11.970526+00:00"
+      "last_updated": "2026-07-25T18:03:19.168574+00:00"
     },
     "dev.to": {
       "enabled": true,
@@ -62,7 +62,7 @@
     },
     "news.ycombinator.com": {
       "enabled": true,
-      "search_enabled": false,
+      "search_enabled": true,
       "post_enabled": false,
       "scraper_type": "api",
       "requires_auth": true,
@@ -70,7 +70,8 @@
       "rate_limit_seconds": 30,
       "guidelines_url": "https://news.ycombinator.com/newsguidelines.html",
       "serp_site_filter": "site:news.ycombinator.com",
-      "last_updated": "2026-07-22T10:22:53.261149"
+      "time_filter": "qdr:m",
+      "last_updated": "2026-07-25T18:04:06.966289+00:00"
     }
   }
 }

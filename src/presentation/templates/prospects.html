@@ -101,7 +101,7 @@
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex gap-2 justify-end items-center flex-wrap">
-                                {% if p.status == 'discovered' %}
+                                {% if p.status == 'discovered' or p.status == 'scraped' %}
                                 <button onclick="evaluateProspect({{ p.id }})" class="btn-premium-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 hover:shadow-lg" title="Evaluate relevance">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                     Evaluate

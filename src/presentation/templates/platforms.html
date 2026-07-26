@@ -3,15 +3,9 @@
 {% block content %}
 <div class="space-y-8 animate-fade-in">
     <!-- Header -->
-    <div class="flex justify-between items-center">
-        <div>
-            <h2 class="text-3xl font-extrabold text-white tracking-tight">Platforms</h2>
-            <p class="text-gray-400 mt-1 text-sm font-medium">Configure which platforms to search and post to</p>
-        </div>
-        <button onclick="showAddModal()" class="btn-premium-primary text-white text-xs font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 shadow-md">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
-            Add Platform
-        </button>
+    <div>
+        <h2 class="text-3xl font-extrabold text-white tracking-tight">Platforms</h2>
+        <p class="text-gray-400 mt-1 text-sm font-medium">Configure which platforms to search and post to</p>
     </div>
 
     <!-- Platforms Grid -->
@@ -19,20 +13,7 @@
         {% for domain, cfg in platforms.items() %}
         <div class="glass-card rounded-2xl p-6 flex flex-col justify-between transition-all duration-300">
             <div>
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-bold text-white tracking-tight">{{ domain }}</h3>
-                    {% if cfg.enabled %}
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                            Enabled
-                        </span>
-                    {% else %}
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                            <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                            Disabled
-                        </span>
-                    {% endif %}
-                </div>
+                <h3 class="text-lg font-bold text-white tracking-tight mb-4">{{ domain }}</h3>
 
                 <div class="space-y-2 text-xs text-gray-400 bg-slate-950/20 p-3.5 rounded-xl border border-white/5">
                     <div class="flex justify-between">
@@ -58,81 +39,22 @@
                 </div>
             </div>
 
-            <div class="mt-6 flex gap-2">
+            <div class="mt-6">
                 <button onclick="toggleSearch('{{ domain }}', {{ cfg.search_enabled|lower }})" class="{% if cfg.search_enabled %}btn-premium-secondary{% else %}btn-premium-secondary opacity-50{% endif %} text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5" title="Toggle search">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     S
-                </button>
-                <button onclick="toggleEnabled('{{ domain }}', {{ cfg.enabled|lower }})" class="{% if cfg.enabled %}btn-premium-danger{% else %}btn-premium-success{% endif %} text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5">
-                    {% if cfg.enabled %}Disable{% else %}Enable{% endif %}
-                </button>
-                <button onclick="removePlatform('{{ domain }}')" class="btn-premium-danger text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center" title="Remove">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
             </div>
         </div>
         {% endfor %}
     </div>
-
-    <!-- Add Platform Modal -->
-    <div id="add-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
-        <div class="glass-card rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/10">
-            <h3 class="text-lg font-bold text-white mb-4">Add Platform</h3>
-            <div class="space-y-3">
-                <div>
-                    <label class="text-xs text-gray-400 font-bold uppercase tracking-wider">Domain</label>
-                    <input type="text" id="new-domain" placeholder="e.g. quora.com" class="w-full mt-1 text-sm premium-input rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/30">
-                </div>
-                <div>
-                    <label class="text-xs text-gray-400 font-bold uppercase tracking-wider">SERP Filter</label>
-                    <input type="text" id="new-serp-filter" placeholder="e.g. site:quora.com" class="w-full mt-1 text-sm premium-input rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/30">
-                </div>
-            </div>
-            <div class="mt-6 flex gap-3">
-                <button onclick="document.getElementById('add-modal').classList.add('hidden'); document.getElementById('add-modal').classList.remove('flex');" class="btn-premium-secondary text-xs font-bold py-2.5 px-4 rounded-xl flex-1">Cancel</button>
-                <button onclick="addPlatform()" class="btn-premium-primary text-white text-xs font-bold py-2.5 px-4 rounded-xl flex-1">Add</button>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script>
-function showAddModal() {
-    const m = document.getElementById('add-modal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
-    document.getElementById('new-domain').value = '';
-    document.getElementById('new-serp-filter').value = '';
-}
-
 async function toggleSearch(domain, current) {
     const form = new FormData();
     form.append('enabled', !current);
     await fetch(`/api/platforms/toggle-search/${domain}`, { method: 'POST', body: form });
-    location.reload();
-}
-
-async function toggleEnabled(domain, current) {
-    const form = new FormData();
-    form.append('enabled', !current);
-    await fetch(`/api/platforms/toggle/${domain}`, { method: 'POST', body: form });
-    location.reload();
-}
-
-async function removePlatform(domain) {
-    if (!confirm(`Remove ${domain}?`)) return;
-    await fetch(`/api/platforms/remove/${domain}`, { method: 'POST' });
-    location.reload();
-}
-
-async function addPlatform() {
-    const domain = document.getElementById('new-domain').value.trim();
-    const serpFilter = document.getElementById('new-serp-filter').value.trim();
-    if (!domain) return;
-    const form = new FormData();
-    form.append('domain', domain);
-    form.append('serp_site_filter', serpFilter || `site:${domain}`);
-    await fetch('/api/platforms/add', { method: 'POST', body: form });
     location.reload();
 }
 </script>

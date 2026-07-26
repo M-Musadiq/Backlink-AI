@@ -5,7 +5,8 @@ from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from src.infrastructure.llm_factory import get_llm
+from src.infrastructure.gemini_service import GeminiLLMService
+from src.config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class RAGRetrieval:
 
     def __init__(self, session: Session):
         self._session = session
-        self._llm = get_llm()
+        self._llm = GeminiLLMService(api_key=GEMINI_API_KEY)
 
     def embed_and_store(self, title: str, content: str, url: str = "") -> int:
         """
@@ -108,7 +109,11 @@ class RAGRetrieval:
         Returns:
             Formatted context string
         """
-        results = self.query(thread_content, top_k=3)
+        try:
+            results = self.query(thread_content, top_k=3)
+        except Exception as e:
+            logger.warning(f"RAG query failed (skipping RAG context): {e}")
+            return "No relevant Gaper.io content found."
 
         if not results:
             return "No relevant Gaper.io content found."

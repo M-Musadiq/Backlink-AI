@@ -117,6 +117,7 @@ class SerperDevSearch:
         country: str = "us",
         language: str = "en",
         site_filter: str = "",
+        time_filter: str = "",
     ) -> List[Dict]:
         """
         Search Google via Serper.dev.
@@ -127,6 +128,7 @@ class SerperDevSearch:
             country: Country code (us, uk, de, etc.)
             language: Language code (en, es, etc.)
             site_filter: Optional site filter (e.g., "site:reddit.com")
+            time_filter: Optional time filter (e.g., "qdr:m" for last month, "qdr:w" for last week, "qdr:d" for last day)
 
         Returns:
             List of dicts with keys: url, title, snippet, position, date
@@ -145,6 +147,8 @@ class SerperDevSearch:
             "hl": language,
             "num": min(num_results, 100),
         }
+        if time_filter:
+            payload["tbs"] = time_filter
 
         try:
             response = requests.post(
@@ -203,6 +207,29 @@ class SerperDevSearch:
             all_results.extend(results)
 
         logger.info(f"Serper multi-platform search: {len(all_results)} total results from {len(platforms)} platforms")
+        return all_results
+
+    def search_platforms_with_time(
+        self,
+        query: str,
+        platforms_with_time: List[Dict] = None,
+        num_per_platform: int = 10,
+    ) -> List[Dict]:
+        """Search across platforms with per-platform time filters."""
+        if platforms_with_time is None:
+            platforms_with_time = _platform_config.get_search_platforms_with_time_filter()
+
+        all_results = []
+        for pt in platforms_with_time:
+            results = self.search(
+                query,
+                num_results=num_per_platform,
+                site_filter=pt["site_filter"],
+                time_filter=pt.get("time_filter", ""),
+            )
+            all_results.extend(results)
+
+        logger.info(f"Serper multi-platform search (with time): {len(all_results)} total results")
         return all_results
 
 
@@ -282,10 +309,19 @@ class SERPClient:
         platforms: List[str] = None,
         num_per_platform: int = 10,
     ) -> List[Dict]:
-        """Search across multiple platforms."""
-        # Try Serper.dev first
+        """Search across platforms."""
+        # Try Serper.dev first with time filters
         if self._serper:
             try:
+                platforms_with_time = _platform_config.get_search_platforms_with_time_filter()
+                if platforms_with_time:
+                    results = self._serper.search_platforms_with_time(
+                        query=query,
+                        platforms_with_time=platforms_with_time,
+                        num_per_platform=num_per_platform,
+                    )
+                    if results:
+                        return results
                 results = self._serper.search_platforms(
                     query=query,
                     platforms=platforms,

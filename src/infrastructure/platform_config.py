@@ -41,6 +41,18 @@ class PlatformConfigService:
             if cfg.get("search_enabled", True) and cfg.get("enabled", True)
         ]
 
+    def get_search_platforms_with_time_filter(self) -> List[Dict]:
+        """Return list of {site_filter, time_filter} for platforms with search_enabled=true."""
+        platforms = self._load().get("platforms", {})
+        return [
+            {
+                "site_filter": cfg["serp_site_filter"],
+                "time_filter": cfg.get("time_filter", ""),
+            }
+            for cfg in platforms.values()
+            if cfg.get("search_enabled", True) and cfg.get("enabled", True)
+        ]
+
     def get_post_enabled_domains(self) -> List[str]:
         """Return list of domains where posting is allowed."""
         platforms = self._load().get("platforms", {})

@@ -18,6 +18,9 @@ class ProspectRepository(BaseRepository[Prospect]):
     def get_by_status(self, status: str) -> List[Prospect]:
         return self._session.query(Prospect).options(joinedload(Prospect.tracked_url)).filter(Prospect.status == status).order_by(Prospect.id.asc()).all()
 
+    def get_by_statuses(self, statuses: List[str]) -> List[Prospect]:
+        return self._session.query(Prospect).options(joinedload(Prospect.tracked_url)).filter(Prospect.status.in_(statuses)).order_by(Prospect.id.asc()).all()
+
     def get_pending_drafts(self) -> List[Prospect]:
         return self._session.query(Prospect).options(joinedload(Prospect.tracked_url)).filter(Prospect.status == "drafted").order_by(Prospect.id.asc()).all()
 

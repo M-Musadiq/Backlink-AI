@@ -60,8 +60,9 @@ class HashnodePoster(BasePlatformPoster):
             logger.info(f"Hashnode: loaded {len(cookies)} cookies via storage_state")
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=False,
+            import sys as _sys
+        browser = await p.chromium.launch(
+                headless=_sys.platform != "win32",
                 channel="chrome",
                 args=["--no-first-run", "--no-default-browser-check"],
             )

@@ -67,8 +67,9 @@ class RedditPoster(BasePlatformPoster):
             storage_state = tmp_path
             logger.info(f"Reddit: saved {len(storage_data['cookies'])} cookies to storage_state")
 
+        import sys
         browser_kwargs = {
-            "headless": False,
+            "headless": sys.platform != "win32",
             "disable_security": True,
         }
         if storage_state:

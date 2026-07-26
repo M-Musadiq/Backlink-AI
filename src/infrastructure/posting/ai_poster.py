@@ -76,8 +76,9 @@ class BrowserUsePoster(BasePlatformPoster):
             logger.info(f"Cookie domains: {list(set(c.get('domain', '') for c in cookies))}")
             logger.info(f"Cookie names: {[c.get('name', '') for c in cookies[:10]]}")
 
+        import sys
         browser_kwargs = {
-            "headless": False,
+            "headless": sys.platform != "win32",
             "disable_security": True,
         }
         if storage_state:

@@ -28,7 +28,8 @@ class DevToPoster(BasePlatformPoster):
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            import sys as _sys
+        browser = await p.chromium.launch(headless=_sys.platform != "win32")
             try:
                 context = await browser.new_context(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

@@ -40,7 +40,7 @@ async def dashboard(request: Request):
 
         all_prospects = prospect_repo.get_all()
         total_prospects = len(all_prospects)
-        discovered = len([p for p in all_prospects if p.status == "discovered"])
+        discovered = len([p for p in all_prospects if p.status in ("discovered", "scraped")])
         relevant = len([p for p in all_prospects if p.status == "relevant"])
         drafted = len([p for p in all_prospects if p.status == "drafted"])
         approved = len([p for p in all_prospects if p.status == "approved"])
@@ -81,7 +81,10 @@ async def prospects_page(request: Request, status: str = ""):
         prospect_repo = ProspectRepository(session)
 
         if status:
-            prospects = prospect_repo.get_by_status(status)
+            if status == "discovered":
+                prospects = prospect_repo.get_by_statuses(["discovered", "scraped"])
+            else:
+                prospects = prospect_repo.get_by_status(status)
         else:
             prospects = prospect_repo.get_all()
 
@@ -408,7 +411,7 @@ async def get_stats():
         return {
             "total_urls": len(all_urls),
             "total_prospects": len(all_prospects),
-            "discovered": len([p for p in all_prospects if p.status == "discovered"]),
+            "discovered": len([p for p in all_prospects if p.status in ("discovered", "scraped")]),
             "relevant": len([p for p in all_prospects if p.status == "relevant"]),
             "drafted": len([p for p in all_prospects if p.status == "drafted"]),
             "approved": len([p for p in all_prospects if p.status == "approved"]),

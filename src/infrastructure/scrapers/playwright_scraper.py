@@ -108,13 +108,17 @@ class PlaywrightScraper(Scraper):
 
     def close(self):
         """Shut down the browser and Playwright."""
-        if self._browser:
-            self._browser.close()
+        try:
+            if self._browser:
+                self._browser.close()
+                self._browser = None
+            if self._playwright:
+                self._playwright.stop()
+                self._playwright = None
+                logger.info("[Playwright Scraper] Browser closed")
+        except Exception:
             self._browser = None
-        if self._playwright:
-            self._playwright.stop()
             self._playwright = None
-            logger.info("[Playwright Scraper] Browser closed")
 
     def __del__(self):
         self.close()

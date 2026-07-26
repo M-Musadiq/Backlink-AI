@@ -29,3 +29,6 @@ uvicorn>=0.25.0
 # === Step 2: Discovery ===
 httpx>=0.26.0
 duckduckgo-search>=7.0.0
+
+# === Browser-use for posting ===
+browser-use>=0.13.0

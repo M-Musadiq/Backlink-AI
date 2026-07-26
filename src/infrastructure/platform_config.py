@@ -1,6 +1,7 @@
 """Platform configuration service - single source of truth for all platforms."""
 import json
 import os
+import sys
 import shutil
 import logging
 from typing import List, Dict, Optional
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "platform_configs.json")
 _CONTAINER_CONFIG = "/tmp/platform_configs.json"
+_IS_CONTAINER = sys.platform == "linux" and os.path.exists("/tmp")
 
 _DEFAULT_CONFIG = {
     "platforms": {
@@ -29,6 +31,8 @@ class PlatformConfigService:
 
     def _ensure_config(self):
         """Copy bundled config to /tmp on first access (Cloud Run read-only FS)."""
+        if not _IS_CONTAINER:
+            return
         if os.path.exists(self._container_path):
             return
         if os.path.exists(self._path):
@@ -40,12 +44,13 @@ class PlatformConfigService:
             logger.warning("platform_configs.json not found, using defaults in /tmp")
 
     def _load(self) -> Dict:
-        path = self._container_path if os.path.exists(self._container_path) else self._path
+        path = self._container_path if _IS_CONTAINER and os.path.exists(self._container_path) else self._path
         with open(path, "r") as f:
             return json.load(f)
 
     def _save(self, data: Dict):
-        with open(self._container_path, "w") as f:
+        path = self._container_path if _IS_CONTAINER else self._path
+        with open(path, "w") as f:
             json.dump(data, f, indent=2)
 
     def get_all(self) -> Dict[str, Dict]:

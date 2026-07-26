@@ -1,6 +1,7 @@
 """Platform configuration service - single source of truth for all platforms."""
 import json
 import os
+import shutil
 import logging
 from typing import List, Dict, Optional
 from datetime import datetime, timezone
@@ -8,6 +9,14 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "platform_configs.json")
+_CONTAINER_CONFIG = "/tmp/platform_configs.json"
+
+_DEFAULT_CONFIG = {
+    "platforms": {
+        "reddit.com": {"enabled": True, "search_enabled": False, "post_enabled": True, "scraper_type": "api", "requires_auth": True, "post_method": "api", "rate_limit_seconds": 10, "guidelines_url": "", "serp_site_filter": "site:reddit.com"},
+        "news.ycombinator.com": {"enabled": True, "search_enabled": True, "post_enabled": False, "scraper_type": "api", "requires_auth": True, "post_method": "form_submit", "rate_limit_seconds": 30, "guidelines_url": "", "serp_site_filter": "site:news.ycombinator.com", "time_filter": "qdr:m"},
+    }
+}
 
 
 class PlatformConfigService:
@@ -15,13 +24,28 @@ class PlatformConfigService:
 
     def __init__(self, config_path: str = None):
         self._path = config_path or CONFIG_PATH
+        self._container_path = _CONTAINER_CONFIG
+        self._ensure_config()
+
+    def _ensure_config(self):
+        """Copy bundled config to /tmp on first access (Cloud Run read-only FS)."""
+        if os.path.exists(self._container_path):
+            return
+        if os.path.exists(self._path):
+            shutil.copy2(self._path, self._container_path)
+            logger.info("Copied platform_configs.json to /tmp")
+        else:
+            with open(self._container_path, "w") as f:
+                json.dump(_DEFAULT_CONFIG, f, indent=2)
+            logger.warning("platform_configs.json not found, using defaults in /tmp")
 
     def _load(self) -> Dict:
-        with open(self._path, "r") as f:
+        path = self._container_path if os.path.exists(self._container_path) else self._path
+        with open(path, "r") as f:
             return json.load(f)
 
     def _save(self, data: Dict):
-        with open(self._path, "w") as f:
+        with open(self._container_path, "w") as f:
             json.dump(data, f, indent=2)
 
     def get_all(self) -> Dict[str, Dict]:

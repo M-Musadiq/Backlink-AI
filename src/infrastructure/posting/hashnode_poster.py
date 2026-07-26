@@ -61,7 +61,7 @@ class HashnodePoster(BasePlatformPoster):
 
         async with async_playwright() as p:
             import sys as _sys
-        browser = await p.chromium.launch(
+            browser = await p.chromium.launch(
                 headless=_sys.platform != "win32",
                 channel="chrome",
                 args=["--no-first-run", "--no-default-browser-check"],

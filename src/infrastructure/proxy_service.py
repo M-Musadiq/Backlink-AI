@@ -133,6 +133,72 @@ class ProxyService:
             logger.warning(f"ProxyService: failed to create ProxySettings: {e}")
             return None
 
+    def get_proxy_with_session(self, session_id: str, country: str = "us") -> Optional[dict]:
+        """Get proxy with a session ID for IP rotation via 2Captcha.
+
+        2Captcha supports session_id in the username to get a different IP per session.
+        Format: username-session-<session_id>
+        """
+        proxy_host = os.getenv("PROXY_HOST")
+        proxy_port = os.getenv("PROXY_PORT")
+        proxy_user = os.getenv("PROXY_USER")
+        proxy_pass = os.getenv("PROXY_PASS")
+
+        if proxy_host and proxy_port:
+            server = f"http://{proxy_host}:{proxy_port}"
+            result = {"server": server}
+            if proxy_user:
+                result["username"] = f"{proxy_user}-session-{session_id}"
+            if proxy_pass:
+                result["password"] = proxy_pass
+            logger.info(f"ProxyService: session proxy {server} session={session_id}")
+            return result
+
+        return self.get_proxy(country)
+
+    def verify_proxy(self, proxy: dict, test_url: str = "https://www.reddit.com") -> bool:
+        """Test if proxy can reach the target site. Returns True if reachable."""
+        try:
+            server = proxy["server"]
+            username = proxy.get("username")
+            password = proxy.get("password", "")
+
+            if username:
+                auth = f"{username}:{password}@"
+                server_url = server.replace("http://", f"http://{auth}")
+            else:
+                server_url = server
+
+            proxies = {"all://": server_url}
+            resp = httpx.get(test_url, proxies=proxies, timeout=15, follow_redirects=True)
+            logger.info(f"ProxyService: verify status={resp.status_code} url={resp.url}")
+            return resp.status_code < 500
+        except Exception as e:
+            logger.warning(f"ProxyService: verify failed: {e}")
+            return False
+
+    def get_outbound_ip_via_proxy(self, proxy: dict) -> Optional[str]:
+        """Get the outgoing IP address through the proxy."""
+        try:
+            server = proxy["server"]
+            username = proxy.get("username")
+            password = proxy.get("password", "")
+
+            if username:
+                auth = f"{username}:{password}@"
+                server_url = server.replace("http://", f"http://{auth}")
+            else:
+                server_url = server
+
+            proxies = {"all://": server_url}
+            resp = httpx.get("https://api.ipify.org?format=json", proxies=proxies, timeout=10)
+            ip = resp.json().get("ip")
+            logger.info(f"ProxyService: outbound IP via proxy is {ip}")
+            return ip
+        except Exception as e:
+            logger.warning(f"ProxyService: failed to get IP via proxy: {e}")
+            return None
+
     def get_playwright_proxy(self, country: str = "us") -> Optional[dict]:
         """Return Playwright proxy dict or None."""
         return self.get_proxy(country)

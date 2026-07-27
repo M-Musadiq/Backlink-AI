@@ -772,6 +772,262 @@ async def delete_session(domain: str):
 
 # === Platform Config Endpoints ===
 
+# === Article Endpoints ===
+
+@app.get("/articles", response_class=HTMLResponse)
+async def articles_page(request: Request):
+    """Articles management page."""
+    return templates.TemplateResponse(
+        request=request,
+        name="articles.html",
+        context={},
+    )
+
+
+@app.post("/api/articles/suggest-topics")
+async def suggest_topics():
+    """Generate article topic suggestions from gaper.io content, excluding already published titles."""
+    from src.infrastructure.gemini_service import GeminiLLMService
+    from src.infrastructure.discovery.gaper_keywords import extract_keywords_from_gaper, GAPER_PAGES
+    from src.infrastructure.scrapers.static_scraper import StaticScraper
+    import src.config as config
+
+    try:
+        llm = GeminiLLMService(api_key=config.GEMINI_API_KEY)
+        scraper = StaticScraper(timeout=20)
+
+        all_content = []
+        for url in GAPER_PAGES:
+            try:
+                result = scraper.scrape(url)
+                if not result.is_empty and len(result.body) > 100:
+                    all_content.append(f"Page: {url}\n{result.body[:2000]}")
+            except Exception:
+                pass
+
+        if not all_content:
+            return {"success": False, "error": "Could not fetch gaper.io content"}
+
+        # Get already published article titles to exclude
+        already_published = []
+        if config.DEVTO_API_KEY:
+            try:
+                from src.infrastructure.devto_repository import DevtoArticleRepository
+                devto_repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
+                for a in devto_repo.get_my_articles():
+                    if a.title:
+                        already_published.append(a.title)
+            except Exception:
+                pass
+        if config.WP_ACCESS_TOKEN and config.WP_SITE_ID:
+            try:
+                from src.infrastructure.wordpress_repository import WordPressArticleRepository
+                wp_repo = WordPressArticleRepository(access_token=config.WP_ACCESS_TOKEN, site_id=config.WP_SITE_ID)
+                for a in wp_repo.get_my_articles():
+                    if a.title:
+                        already_published.append(a.title)
+            except Exception:
+                pass
+
+        exclude_str = "\n".join(f"- {t}" for t in already_published) if already_published else "(none published yet)"
+
+        combined = "\n\n".join(all_content)
+        prompt = f"""Based on content from gaper.io (an AI agent platform for businesses), suggest 10 article topics.
+
+The articles should be helpful developer-focused content that naturally relates to gaper.io's products (AI agents, chatbots, customer support automation, LLM deployment).
+
+Topics should be:
+- Tutorial or how-to style
+- Relevant to developers building AI-powered apps
+- Naturally mention or relate to AI agent deployment (gaper.io)
+- Specific and actionable (not vague)
+
+DO NOT suggest these already published titles:
+{exclude_str}
+
+FORMAT: Return ONLY a JSON array of objects with "title", "description", "keywords", and "strategy" fields.
+strategy must be one of: "tutorial", "howto", "opinion"
+Example:
+[
+  {{"title": "How to Deploy AI Agents for Customer Support", "description": "Step-by-step guide to deploying AI agents", "keywords": ["ai agents", "customer support", "deployment"], "strategy": "tutorial"}},
+  ...
+]
+
+Content from gaper.io:
+{combined[:8000]}"""
+
+        response = llm.generate(prompt=prompt, temperature=0.7)
+
+        import json
+        import re
+        json_match = re.search(r'\[[\s\S]*\]', response)
+        if json_match:
+            topics = json.loads(json_match.group())
+        else:
+            return {"success": False, "error": "Could not parse topic suggestions"}
+
+        return {"success": True, "topics": topics[:10]}
+    except Exception as e:
+        logger.error(f"Topic suggestion failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/articles/generate")
+async def generate_article(request: Request):
+    """Generate an article using LLM."""
+    from src.domain.entities import Topic
+    from src.infrastructure.content_generators import LLMContentGenerator
+    from src.infrastructure.gemini_service import GeminiLLMService
+    import src.config as config
+
+    try:
+        body = await request.json()
+        topic_name = body.get("topic", "")
+        strategy = body.get("strategy", "tutorial")
+        keywords_str = body.get("keywords", "")
+        backlink = body.get("backlink", True)
+
+        if not topic_name:
+            return {"success": False, "error": "Topic is required"}
+
+        keywords = [k.strip() for k in keywords_str.split(",") if k.strip()] if keywords_str else [topic_name]
+
+        topic = Topic(name=topic_name, description=topic_name, keywords=keywords)
+
+        llm = GeminiLLMService(api_key=config.GEMINI_API_KEY)
+        generator = LLMContentGenerator(llm_service=llm, strategy_type=strategy, backlink_enabled=backlink)
+        article = generator.generate(topic)
+        article = generator.review(article)
+
+        return {
+            "success": True,
+            "title": article.title,
+            "body": article.body_markdown,
+            "description": article.description,
+            "tags": article.tags,
+        }
+    except Exception as e:
+        logger.error(f"Article generation failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/articles/publish")
+async def publish_article(request: Request):
+    """Publish article to selected platforms."""
+    from src.domain.entities import Article
+    from src.infrastructure.devto_repository import DevtoArticleRepository
+    from src.infrastructure.wordpress_repository import WordPressArticleRepository
+    import src.config as config
+
+    try:
+        body = await request.json()
+        title = body.get("title", "")
+        content = body.get("body", "")
+        description = body.get("description", "")
+        tags = body.get("tags", [])
+        publish_devto = body.get("publish_devto", False)
+        publish_wordpress = body.get("publish_wordpress", False)
+        published = body.get("published", False)
+
+        if not title or not content:
+            return {"success": False, "error": "Title and body are required"}
+
+        article = Article(
+            title=title,
+            body_markdown=content,
+            description=description,
+            tags=tags,
+            published=published,
+        )
+
+        results = {}
+
+        if publish_devto and config.DEVTO_API_KEY:
+            try:
+                repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
+                result = repo.create(article)
+                results["devto_url"] = result.url or ""
+                results["devto_id"] = result.id
+                logger.info(f"Published to Dev.to: {result.url}")
+            except Exception as e:
+                logger.error(f"Dev.to publish failed: {e}")
+                results["devto_error"] = str(e)
+
+        if publish_wordpress and config.WP_ACCESS_TOKEN and config.WP_SITE_ID:
+            try:
+                repo = WordPressArticleRepository(
+                    access_token=config.WP_ACCESS_TOKEN,
+                    site_id=config.WP_SITE_ID,
+                )
+                result = repo.create(article)
+                results["wordpress_url"] = result.url or ""
+                results["wordpress_id"] = result.id
+                logger.info(f"Published to WordPress: {result.url}")
+            except Exception as e:
+                logger.error(f"WordPress publish failed: {e}")
+                results["wordpress_error"] = str(e)
+
+        if not results:
+            return {"success": False, "error": "No platforms selected or missing API keys"}
+
+        has_error = "devto_error" in results or "wordpress_error" in results
+        has_success = "devto_url" in results or "wordpress_url" in results
+
+        return {
+            "success": has_success,
+            **results,
+            "error": "Partial failure" if has_error and has_success else (results.get("devto_error") or results.get("wordpress_error", "")),
+        }
+    except Exception as e:
+        logger.error(f"Article publish failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/articles/list")
+async def list_articles():
+    """List articles from Dev.to and WordPress."""
+    from src.infrastructure.devto_repository import DevtoArticleRepository
+    from src.infrastructure.wordpress_repository import WordPressArticleRepository
+    import src.config as config
+
+    articles = []
+
+    if config.DEVTO_API_KEY:
+        try:
+            repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
+            for a in repo.get_my_articles():
+                articles.append({
+                    "platform": "Dev.to",
+                    "title": a.title,
+                    "url": a.url or "",
+                    "status": "published" if a.published else "draft",
+                    "published_at": a.published_at.isoformat() if a.published_at else "",
+                })
+        except Exception as e:
+            logger.warning(f"Failed to fetch Dev.to articles: {e}")
+
+    if config.WP_ACCESS_TOKEN and config.WP_SITE_ID:
+        try:
+            repo = WordPressArticleRepository(
+                access_token=config.WP_ACCESS_TOKEN,
+                site_id=config.WP_SITE_ID,
+            )
+            for a in repo.get_my_articles():
+                articles.append({
+                    "platform": "WordPress",
+                    "title": a.title,
+                    "url": a.url or "",
+                    "status": "published" if a.published else "draft",
+                    "published_at": a.published_at.isoformat() if a.published_at else "",
+                })
+        except Exception as e:
+            logger.warning(f"Failed to fetch WordPress articles: {e}")
+
+    return {"success": True, "articles": articles}
+
+
+# === Platform Config Endpoints ===
+
 @app.get("/platforms", response_class=HTMLResponse)
 async def platforms_page(request: Request):
     """Platforms management page."""

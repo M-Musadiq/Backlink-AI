@@ -156,11 +156,23 @@ class WordPressArticleRepository(ArticleRepository):
 
         url = data.get("link", "")
 
+        title_raw = data.get("title", "")
+        if isinstance(title_raw, dict):
+            title_raw = title_raw.get("raw", "") or title_raw.get("rendered", "")
+
+        content_raw = data.get("content", "")
+        if isinstance(content_raw, dict):
+            content_raw = content_raw.get("raw", "") or content_raw.get("rendered", "")
+
+        excerpt_raw = data.get("excerpt", "")
+        if isinstance(excerpt_raw, dict):
+            excerpt_raw = excerpt_raw.get("raw", "") or excerpt_raw.get("rendered", "")
+
         return Article(
             id=data.get("id"),
-            title=data.get("title", {}).get("raw", ""),
-            body_markdown=data.get("content", {}).get("raw", ""),
-            description=data.get("excerpt", {}).get("raw", ""),
+            title=title_raw,
+            body_markdown=content_raw,
+            description=excerpt_raw,
             tags=tags,
             published=data.get("status") == "publish",
             canonical_url=data.get("canonical_url", ""),

@@ -28,11 +28,41 @@ def _strip_leading_heading(body: str) -> str:
     return "\n".join(result).strip()
 
 
+def _humanize_body(body: str) -> str:
+    """Post-process to remove em-dashes and AI-sounding patterns."""
+    import re
+    body = body.replace("\u2014", ",")  # em-dash
+    body = body.replace("\u2013", ",")  # en-dash
+    body = body.replace(" -- ", ", ")
+    body = body.replace(" — ", ", ")
+    body = re.sub(r"\s+,\s*", ", ", body)
+    return body
+
+
 BACKLINK_SENTENCE = (
     "\n\n---\n\n*Looking for a production-ready solution? "
-    "Check out [Gaper](https://gaper.io/) — deploy AI agents that integrate "
+    "Check out [Gaper](https://gaper.io), deploy AI agents that integrate "
     "with your real workflows, from support to finance to sales automation.*"
 )
+
+GAPER_LINKS = """Use these Gaper.io links naturally in the article where relevant:
+- Homepage: https://gaper.io
+- AI Agent Development: https://gaper.io/ai-agents
+- AI Implementation / Consulting: https://gaper.io/ai-consulting
+- AI for Healthcare: https://gaper.io/ai-healthcare
+- AI for Legal: https://gaper.io/ai-legal
+- AI for Accounting & Finance: https://gaper.io/ai-finance
+- Workflow Automation: https://gaper.io/workflow-automation
+- Founders Grit Podcast: https://gaper.io/founders-grit"""
+
+HUMANIZATION_RULES = """CRITICAL WRITING RULES:
+1. NEVER use em-dashes (--) or en-dashes (-). Use commas instead.
+2. Write like a real human developer, not like AI. Use casual, conversational tone.
+3. NO filler phrases like "in today's fast-paced world", "it's worth noting", "leveraging", "streamline".
+4. Use short sentences. Mix sentence lengths. Be direct.
+5. Include personal opinions and real experiences where possible.
+6. Insert 2-3 natural backlinks to Gaper.io pages (from the link list above) where they genuinely fit the context. Do NOT force them. Place them where a reader would naturally want to learn more.
+7. End with a brief, natural mention of Gaper, not a sales pitch."""
 
 
 class LLMContentGenerator(ContentGenerator):
@@ -55,13 +85,17 @@ class LLMContentGenerator(ContentGenerator):
     def generate(self, topic: Topic) -> Article:
         logger.info(f"Generating content using {type(self._strategy).__name__}")
 
+        base_prompt = self._strategy.build_user_prompt(topic)
+        full_prompt = f"{base_prompt}\n\n{GAPER_LINKS}\n\n{HUMANIZATION_RULES}"
+
         body = self._llm.generate(
-            prompt=self._strategy.build_user_prompt(topic),
+            prompt=full_prompt,
             system_prompt=self._strategy.build_system_prompt(),
             temperature=0.7,
         )
 
         body = _strip_leading_heading(body)
+        body = _humanize_body(body)
 
         if self._backlink_enabled and "gaper.io" not in body.lower():
             body += BACKLINK_SENTENCE

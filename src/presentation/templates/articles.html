@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">Articles</h2>
+            <p class="text-gray-400 mt-1 text-sm font-medium">Generate and publish articles to Dev.to &amp; WordPress</p>
+        </div>
+        <button onclick="loadMyArticles()" class="btn-premium-secondary text-sm font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+            My Articles
+        </button>
+    </div>
+
+    <!-- Step 1: Suggest Topics -->
+    <div class="glass-card rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 text-sm font-bold border border-indigo-500/30">1</span>
+            <h3 class="text-lg font-bold text-white">Suggested Topics</h3>
+            <span class="text-xs text-gray-500">(based on gaper.io content, excluding published articles)</span>
+        </div>
+        <button onclick="suggestTopics()" id="btn-suggest" class="btn-premium-primary text-white text-sm font-bold py-2.5 px-6 rounded-xl mb-4">
+            Suggest Topics
+        </button>
+        <div id="topics-container" class="hidden space-y-2"></div>
+    </div>
+
+    <!-- Step 2: Edit & Generate -->
+    <div class="glass-card rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 text-sm font-bold border border-indigo-500/30">2</span>
+            <h3 class="text-lg font-bold text-white">Article Details</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Topic / Title</label>
+                    <input type="text" id="article-topic" placeholder="e.g. How to Deploy AI Agents with Gaper.io" class="w-full premium-input rounded-xl px-4 py-3 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Strategy</label>
+                    <select id="article-strategy" class="w-full premium-input rounded-xl px-4 py-3 text-sm">
+                        <option value="tutorial">Tutorial (Step-by-step)</option>
+                        <option value="howto">How-To (Problem-solving)</option>
+                        <option value="opinion">Opinion (Thought leadership)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Keywords (comma-separated)</label>
+                    <input type="text" id="article-keywords" placeholder="ai agents, deployment, automation" class="w-full premium-input rounded-xl px-4 py-3 text-sm">
+                </div>
+                <button onclick="generateArticle()" id="btn-generate" class="w-full btn-premium-primary text-white text-sm font-bold py-3 rounded-xl">
+                    Generate with AI
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Description</label>
+                    <input type="text" id="article-description" placeholder="Short description for SEO" class="w-full premium-input rounded-xl px-4 py-3 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Tags (comma-separated)</label>
+                    <input type="text" id="article-tags" placeholder="ai, automation, tutorial" class="w-full premium-input rounded-xl px-4 py-3 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Backlink</label>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="article-backlink" checked class="w-4 h-4 accent-indigo-500">
+                        <label for="article-backlink" class="text-sm text-gray-300">Include Gaper.io backlink</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Article Body -->
+    <div class="glass-card rounded-2xl p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white">Article Body</h3>
+            <span id="char-count" class="text-xs text-gray-500">0 characters</span>
+        </div>
+        <textarea id="article-body" rows="20" placeholder="Article content will appear here after generation. You can also write or paste your own content." class="w-full premium-input rounded-xl px-4 py-3 text-sm font-mono leading-relaxed" style="min-height: 400px;"></textarea>
+    </div>
+
+    <!-- Step 3: Publish -->
+    <div class="glass-card rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 text-sm font-bold border border-indigo-500/30">3</span>
+            <h3 class="text-lg font-bold text-white">Publish</h3>
+        </div>
+        <div class="flex items-center gap-6 mb-4">
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="publish-devto" checked class="w-4 h-4 accent-indigo-500">
+                <label for="publish-devto" class="text-sm text-gray-300 font-medium">Dev.to</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="publish-wordpress" checked class="w-4 h-4 accent-indigo-500">
+                <label for="publish-wordpress" class="text-sm text-gray-300 font-medium">WordPress</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="publish-draft" class="w-4 h-4 accent-amber-500">
+                <label for="publish-draft" class="text-sm text-gray-300 font-medium">Save as draft</label>
+            </div>
+        </div>
+        <button onclick="publishArticle()" id="btn-publish" class="btn-premium-success text-white text-sm font-bold py-3 px-8 rounded-xl">
+            Publish Article
+        </button>
+    </div>
+
+    <!-- Published Articles List -->
+    <div id="articles-list" class="glass-card rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <h3 class="text-lg font-bold text-white">Published Articles</h3>
+            <button onclick="loadMyArticles()" class="text-xs text-indigo-400 hover:text-indigo-300 underline">Refresh</button>
+        </div>
+        <div id="articles-content" class="space-y-3">
+            <div class="text-gray-500 text-sm">Loading...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let selectedTopic = null;
+
+    window.addEventListener('DOMContentLoaded', loadMyArticles);
+
+    document.getElementById('article-body').addEventListener('input', function() {
+        document.getElementById('char-count').textContent = this.value.length + ' characters';
+    });
+
+    async function suggestTopics() {
+        const btn = document.getElementById('btn-suggest');
+        const container = document.getElementById('topics-container');
+        btn.disabled = true;
+        btn.textContent = 'Finding topics...';
+        container.classList.add('hidden');
+        container.innerHTML = '';
+
+        try {
+            const resp = await fetch('/api/articles/suggest-topics', { method: 'POST' });
+            const data = await resp.json();
+
+            if (data.success && data.topics.length > 0) {
+                container.classList.remove('hidden');
+                container.innerHTML = data.topics.map((t, i) => `
+                    <div onclick="selectTopic(${i})" id="topic-${i}" class="topic-card p-4 rounded-xl bg-white/3 border border-white/5 hover:border-indigo-500/30 cursor-pointer transition-all duration-200">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xs font-bold text-indigo-400 mt-0.5 uppercase">${t.strategy || 'tutorial'}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-semibold text-white">${t.title}</div>
+                                <div class="text-xs text-gray-500 mt-1">${t.description || ''}</div>
+                                <div class="flex flex-wrap gap-1 mt-2">${(t.keywords || []).map(k => `<span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${k}</span>`).join('')}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                window._suggestedTopics = data.topics;
+                showToast(`${data.topics.length} topics suggested!`);
+            } else {
+                container.classList.remove('hidden');
+                container.innerHTML = '<div class="text-gray-500 text-sm">No topics could be generated. Try again.</div>';
+            }
+        } catch (e) {
+            showToast('Failed to suggest topics: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Suggest Topics';
+        }
+    }
+
+    function selectTopic(index) {
+        const topics = window._suggestedTopics || [];
+        const t = topics[index];
+        if (!t) return;
+
+        document.querySelectorAll('.topic-card').forEach(el => el.classList.remove('border-indigo-500/60', 'bg-indigo-500/5'));
+        document.getElementById('topic-' + index).classList.add('border-indigo-500/60', 'bg-indigo-500/5');
+
+        document.getElementById('article-topic').value = t.title || '';
+        document.getElementById('article-description').value = t.description || '';
+        document.getElementById('article-keywords').value = (t.keywords || []).join(', ');
+        document.getElementById('article-strategy').value = t.strategy || 'tutorial';
+        selectedTopic = t;
+        showToast('Topic selected! Click "Generate with AI" to create the article.');
+    }
+
+    async function generateArticle() {
+        const topic = document.getElementById('article-topic').value.trim();
+        const strategy = document.getElementById('article-strategy').value;
+        const keywords = document.getElementById('article-keywords').value.trim();
+        const backlink = document.getElementById('article-backlink').checked;
+
+        if (!topic) {
+            showToast('Please enter a topic', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-generate');
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+
+        try {
+            const resp = await fetch('/api/articles/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({topic, strategy, keywords, backlink})
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                document.getElementById('article-description').value = data.description || '';
+                document.getElementById('article-tags').value = (data.tags || []).join(', ');
+                document.getElementById('article-body').value = data.body || '';
+                document.getElementById('char-count').textContent = (data.body || '').length + ' characters';
+                showToast('Article generated! Review and edit below, then publish.');
+            } else {
+                showToast(data.error || 'Generation failed', 'error');
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Generate with AI';
+        }
+    }
+
+    async function publishArticle() {
+        const devto = document.getElementById('publish-devto').checked;
+        const wordpress = document.getElementById('publish-wordpress').checked;
+        const asDraft = document.getElementById('publish-draft').checked;
+
+        if (!devto && !wordpress) {
+            showToast('Select at least one platform', 'error');
+            return;
+        }
+
+        const payload = {
+            title: document.getElementById('article-topic').value.trim(),
+            body: document.getElementById('article-body').value,
+            description: document.getElementById('article-description').value.trim(),
+            tags: document.getElementById('article-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+            publish_devto: devto,
+            publish_wordpress: wordpress,
+            published: !asDraft,
+        };
+
+        if (!payload.title || !payload.body) {
+            showToast('Title and body are required', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-publish');
+        btn.disabled = true;
+        btn.textContent = 'Publishing...';
+
+        try {
+            const resp = await fetch('/api/articles/publish', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+
+                if (data.success) {
+                const platforms = [];
+                if (data.devto_url) platforms.push('Dev.to: ' + data.devto_url);
+                if (data.wordpress_url) platforms.push('WordPress: ' + data.wordpress_url);
+                showToast('Published! ' + platforms.join(' | '));
+                if (selectedTopic) {
+                    const idx = (window._suggestedTopics || []).findIndex(t => t.title === selectedTopic.title);
+                    if (idx !== -1) {
+                        const card = document.getElementById('topic-' + idx);
+                        if (card) card.remove();
+                        window._suggestedTopics.splice(idx, 1);
+                    }
+                    selectedTopic = null;
+                }
+                document.getElementById('article-topic').value = '';
+                document.getElementById('article-description').value = '';
+                document.getElementById('article-keywords').value = '';
+                document.getElementById('article-tags').value = '';
+                document.getElementById('article-body').value = '';
+                document.getElementById('char-count').textContent = '0 characters';
+                loadMyArticles();
+            } else {
+                showToast(data.error || 'Publish failed', 'error');
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Publish Article';
+        }
+    }
+
+    async function loadMyArticles() {
+        const container = document.getElementById('articles-list');
+        const content = document.getElementById('articles-content');
+        container.classList.remove('hidden');
+        content.innerHTML = '<div class="text-gray-400 text-sm">Loading...</div>';
+
+        try {
+            const resp = await fetch('/api/articles/list');
+            const data = await resp.json();
+
+            if (data.success && data.articles.length > 0) {
+                content.innerHTML = data.articles.map(a => `
+                    <div class="p-4 rounded-xl bg-white/3 border border-white/5 hover:border-indigo-500/20 transition-all">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-semibold text-white">${a.title || 'Untitled'}</div>
+                                <div class="flex items-center gap-3 mt-1.5">
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full ${a.platform === 'Dev.to' ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/20' : 'bg-blue-500/15 text-blue-300 border border-blue-500/20'}">${a.platform}</span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full ${a.status === 'published' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' : 'bg-amber-500/15 text-amber-300 border border-amber-500/20'}">${a.status}</span>
+                                    ${a.published_at ? '<span class="text-[10px] text-gray-500">' + new Date(a.published_at).toLocaleDateString() + '</span>' : ''}
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                ${a.url ? `<a href="${a.url}" target="_blank" class="btn-premium-secondary text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                    View
+                                </a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                content.innerHTML = '<div class="text-gray-500 text-sm">No articles found.</div>';
+            }
+        } catch (e) {
+            content.innerHTML = '<div class="text-rose-400 text-sm">Failed to load articles.</div>';
+        }
+    }
+</script>
+{% endblock %}

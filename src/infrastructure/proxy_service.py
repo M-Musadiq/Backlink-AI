@@ -156,21 +156,21 @@ class ProxyService:
 
         return self.get_proxy(country)
 
+    def _build_proxy_url(self, proxy: dict) -> str:
+        """Build proxy URL with auth: http://user:pass@host:port"""
+        server = proxy["server"]
+        username = proxy.get("username")
+        password = proxy.get("password", "")
+        if username:
+            auth = f"{username}:{password}@"
+            return server.replace("http://", f"http://{auth}")
+        return server
+
     def verify_proxy(self, proxy: dict, test_url: str = "https://www.reddit.com") -> bool:
         """Test if proxy can reach the target site. Returns True if reachable."""
         try:
-            server = proxy["server"]
-            username = proxy.get("username")
-            password = proxy.get("password", "")
-
-            if username:
-                auth = f"{username}:{password}@"
-                server_url = server.replace("http://", f"http://{auth}")
-            else:
-                server_url = server
-
-            proxies = {"all://": server_url}
-            resp = httpx.get(test_url, proxies=proxies, timeout=15, follow_redirects=True)
+            proxy_url = self._build_proxy_url(proxy)
+            resp = httpx.get(test_url, proxy=proxy_url, timeout=15, follow_redirects=True)
             logger.info(f"ProxyService: verify status={resp.status_code} url={resp.url}")
             return resp.status_code < 500
         except Exception as e:
@@ -180,18 +180,8 @@ class ProxyService:
     def get_outbound_ip_via_proxy(self, proxy: dict) -> Optional[str]:
         """Get the outgoing IP address through the proxy."""
         try:
-            server = proxy["server"]
-            username = proxy.get("username")
-            password = proxy.get("password", "")
-
-            if username:
-                auth = f"{username}:{password}@"
-                server_url = server.replace("http://", f"http://{auth}")
-            else:
-                server_url = server
-
-            proxies = {"all://": server_url}
-            resp = httpx.get("https://api.ipify.org?format=json", proxies=proxies, timeout=10)
+            proxy_url = self._build_proxy_url(proxy)
+            resp = httpx.get("https://api.ipify.org?format=json", proxy=proxy_url, timeout=10)
             ip = resp.json().get("ip")
             logger.info(f"ProxyService: outbound IP via proxy is {ip}")
             return ip

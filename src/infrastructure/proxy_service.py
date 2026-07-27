@@ -133,28 +133,29 @@ class ProxyService:
             logger.warning(f"ProxyService: failed to create ProxySettings: {e}")
             return None
 
-    def get_proxy_with_session(self, session_id: str, country: str = "us") -> Optional[dict]:
+    def get_proxy_with_session(self, session_id: str, country: str = None) -> Optional[dict]:
         """Get proxy with a session ID for IP rotation via 2Captcha.
 
         2Captcha supports session_id in the username to get a different IP per session.
-        Format: username-session-<session_id>
+        Format: username-session-<session_id>-country-<country>
         """
         proxy_host = os.getenv("PROXY_HOST")
         proxy_port = os.getenv("PROXY_PORT")
         proxy_user = os.getenv("PROXY_USER")
         proxy_pass = os.getenv("PROXY_PASS")
+        proxy_country = country or os.getenv("PROXY_COUNTRY", "us")
 
         if proxy_host and proxy_port:
             server = f"http://{proxy_host}:{proxy_port}"
             result = {"server": server}
             if proxy_user:
-                result["username"] = f"{proxy_user}-session-{session_id}"
+                result["username"] = f"{proxy_user}-session-{session_id}-country-{proxy_country}"
             if proxy_pass:
                 result["password"] = proxy_pass
-            logger.info(f"ProxyService: session proxy {server} session={session_id}")
+            logger.info(f"ProxyService: session proxy {server} session={session_id} country={proxy_country}")
             return result
 
-        return self.get_proxy(country)
+        return self.get_proxy(proxy_country)
 
     def _build_proxy_url(self, proxy: dict) -> str:
         """Build proxy URL with auth: http://user:pass@host:port"""

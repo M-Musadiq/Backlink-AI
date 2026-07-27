@@ -50,13 +50,7 @@ jobs:
             --max-instances 2 \
             --timeout 300 \
             --allow-unauthenticated \
-            --set-env-vars="GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
-            --set-env-vars="SERPER_API_KEY=${{ secrets.SERPER_API_KEY }}" \
-            --set-env-vars="TWOCAPTCHA_API_KEY=${{ secrets.TWOCAPTCHA_API_KEY }}" \
-            --set-env-vars="DEVTO_API_KEY=${{ secrets.DEVTO_API_KEY }}" \
-            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
-            --set-env-vars="REDIS_URL=${{ secrets.REDIS_URL }}" \
-            --set-env-vars="VAULT_ENCRYPTION_KEY=${{ secrets.VAULT_ENCRYPTION_KEY }}"
+            --set-env-vars="GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},SERPER_API_KEY=${{ secrets.SERPER_API_KEY }},TWOCAPTCHA_API_KEY=${{ secrets.TWOCAPTCHA_API_KEY }},DEVTO_API_KEY=${{ secrets.DEVTO_API_KEY }},DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},VAULT_ENCRYPTION_KEY=${{ secrets.VAULT_ENCRYPTION_KEY }},PROXY_HOST=${{ secrets.PROXY_HOST }},PROXY_PORT=${{ secrets.PROXY_PORT }},PROXY_USER=${{ secrets.PROXY_USER }},PROXY_PASS=${{ secrets.PROXY_PASS }}"
 
       - name: Show deployment URL
         run: |

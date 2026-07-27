@@ -161,6 +161,9 @@ class APIScraper(Scraper):
         if not data:
             raise ValueError(f"HN item not found: {item_id}")
 
+        if data.get("dead"):
+            raise ValueError(f"HN thread archived/dead: {item_id}")
+
         # Build body from the story text + top comments
         body_parts = []
         story_text = data.get("text", "")

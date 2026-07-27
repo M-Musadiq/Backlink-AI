@@ -44,11 +44,17 @@ class ProxyService:
 
     def _generate_connections(self, api_key: str, ip: str, country: str = "us") -> Optional[list]:
         try:
-            url = (
-                f"https://api.2captcha.com/proxy/generate_white_list_connections"
-                f"?key={api_key}&country={country}&protocol=http&connection_count=5&ip={ip}"
+            resp = httpx.get(
+                "https://api.2captcha.com/proxy/generate_white_list_connections",
+                params={
+                    "key": api_key,
+                    "country": country,
+                    "protocol": "http",
+                    "connection_count": 5,
+                    "ip": ip,
+                },
+                timeout=10,
             )
-            resp = httpx.get(url, timeout=10)
             data = resp.json()
             if data.get("status") == "OK":
                 return data.get("data", [])
@@ -97,6 +103,8 @@ class ProxyService:
         outbound_ip = self._get_outbound_ip()
         if not outbound_ip:
             return None
+
+        logger.info(f"ProxyService: outbound IP is {outbound_ip} — must be whitelisted at https://2captcha.com/proxy/ip-whitelist")
 
         connections = self._generate_connections(TWOCAPTCHA_API_KEY, outbound_ip, country)
         if connections:

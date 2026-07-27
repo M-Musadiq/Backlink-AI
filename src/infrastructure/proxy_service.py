@@ -133,63 +133,6 @@ class ProxyService:
             logger.warning(f"ProxyService: failed to create ProxySettings: {e}")
             return None
 
-    def get_proxy_with_session(self, session_id: str, country: str = None) -> Optional[dict]:
-        """Get proxy with a session ID for IP rotation via 2Captcha.
-
-        2Captcha supports session_id in the username to get a different IP per session.
-        Format: username-session-<session_id>-country-<country>
-        """
-        proxy_host = os.getenv("PROXY_HOST")
-        proxy_port = os.getenv("PROXY_PORT")
-        proxy_user = os.getenv("PROXY_USER")
-        proxy_pass = os.getenv("PROXY_PASS")
-        proxy_country = country or os.getenv("PROXY_COUNTRY", "us")
-
-        if proxy_host and proxy_port:
-            server = f"http://{proxy_host}:{proxy_port}"
-            result = {"server": server}
-            if proxy_user:
-                result["username"] = f"{proxy_user}-session-{session_id}-country-{proxy_country}"
-            if proxy_pass:
-                result["password"] = proxy_pass
-            logger.info(f"ProxyService: session proxy {server} session={session_id} country={proxy_country}")
-            return result
-
-        return self.get_proxy(proxy_country)
-
-    def _build_proxy_url(self, proxy: dict) -> str:
-        """Build proxy URL with auth: http://user:pass@host:port"""
-        server = proxy["server"]
-        username = proxy.get("username")
-        password = proxy.get("password", "")
-        if username:
-            auth = f"{username}:{password}@"
-            return server.replace("http://", f"http://{auth}")
-        return server
-
-    def verify_proxy(self, proxy: dict, test_url: str = "https://www.reddit.com") -> bool:
-        """Test if proxy can reach the target site. Returns True if reachable."""
-        try:
-            proxy_url = self._build_proxy_url(proxy)
-            resp = httpx.get(test_url, proxy=proxy_url, timeout=15, follow_redirects=True)
-            logger.info(f"ProxyService: verify status={resp.status_code} url={resp.url}")
-            return resp.status_code < 500
-        except Exception as e:
-            logger.warning(f"ProxyService: verify failed: {e}")
-            return False
-
-    def get_outbound_ip_via_proxy(self, proxy: dict) -> Optional[str]:
-        """Get the outgoing IP address through the proxy."""
-        try:
-            proxy_url = self._build_proxy_url(proxy)
-            resp = httpx.get("https://api.ipify.org?format=json", proxy=proxy_url, timeout=10)
-            ip = resp.json().get("ip")
-            logger.info(f"ProxyService: outbound IP via proxy is {ip}")
-            return ip
-        except Exception as e:
-            logger.warning(f"ProxyService: failed to get IP via proxy: {e}")
-            return None
-
     def get_playwright_proxy(self, country: str = "us") -> Optional[dict]:
         """Return Playwright proxy dict or None."""
         return self.get_proxy(country)

@@ -44,7 +44,7 @@ HACKER NEWS SPECIFIC RULES:
 - The backlink should feel like a genuine recommendation, not spam
 
 BACKLINK FORMAT:
-- If mentioning Gaper.io, include a natural link like: "Check out Gaper.io (https://gaper.io/) for..."
+- If mentioning Gaper.io, just use the bare URL naturally like: "You can check out https://gaper.io/ for..."
 - Don't overdo it - 1 mention max per reply
 - If the thread isn't a good fit, just write a helpful reply without backlink"""
 

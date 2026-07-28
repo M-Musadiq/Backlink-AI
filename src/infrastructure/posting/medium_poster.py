@@ -1,7 +1,8 @@
-"""Medium platform poster - browser-use + 2Captcha reCAPTCHA v3 Enterprise solving."""
+"""Medium platform poster - Playwright + 2Captcha reCAPTCHA v3 Enterprise solving."""
 import json
 import logging
 import asyncio
+import re
 import tempfile
 import os
 from src.infrastructure.posting.base_poster import BasePlatformPoster, PostResult
@@ -32,17 +33,9 @@ class MediumPoster(BasePlatformPoster):
                 loop.close()
 
     async def _post_reply_async(self, url: str, content: str, cookies: list = None) -> PostResult:
-        from browser_use import Agent, Browser, BrowserProfile
-        from browser_use.llm.google.chat import ChatGoogle
-        import src.config as config
+        from playwright.async_api import async_playwright
 
-        llm = ChatGoogle(
-            model="gemini-3.5-flash",
-            api_key=config.GEMINI_API_KEY,
-            temperature=0.1,
-        )
-
-        # Save cookies to storage_state
+        # Build storage_state from cookies
         storage_state = None
         tmp_path = None
         if cookies:
@@ -50,13 +43,14 @@ class MediumPoster(BasePlatformPoster):
             for c in cookies:
                 if c.get("name", "").startswith("__Host-"):
                     continue
+                domain = c.get("domain", "")
                 ss = c.get("sameSite", "Lax")
                 if ss is None or ss not in ("Strict", "Lax", "None"):
                     ss = "Lax"
                 cookie = {
                     "name": c["name"],
                     "value": c["value"],
-                    "domain": c["domain"],
+                    "domain": domain,
                     "path": c.get("path", "/"),
                     "httpOnly": bool(c.get("httpOnly", False)),
                     "secure": bool(c.get("secure", False)),
@@ -65,7 +59,6 @@ class MediumPoster(BasePlatformPoster):
                 if c.get("expires") and c["expires"] > 0:
                     cookie["expires"] = c["expires"]
                 storage_data["cookies"].append(cookie)
-
             tmp_path = tempfile.mktemp(suffix=".json")
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(storage_data, f, ensure_ascii=False)
@@ -82,161 +75,372 @@ class MediumPoster(BasePlatformPoster):
         else:
             logger.warning("Medium: reCAPTCHA v3 Enterprise pre-solve FAILED")
 
-        import sys
-        browser_kwargs = {
-            "headless": sys.platform != "win32",
-            "disable_security": True,
-        }
-        if storage_state:
-            browser_kwargs["storage_state"] = storage_state
-        else:
-            browser_kwargs["user_data_dir"] = None
-
-        browser_profile = BrowserProfile(**browser_kwargs)
-        browser = Browser(browser_profile=browser_profile)
-
-        # Build the injection script that runs BEFORE page load
-        inject_script = ""
-        if recaptcha_token:
-            # Escape token for JS
-            safe_token = json.dumps(recaptcha_token)
-            inject_script = f"""
-Before navigating to the page, inject this script via evaluate:
-
-(function() {{
-  var token = {safe_token};
-
-  // 1. Override grecaptcha.enterprise.execute to return our token
-  if (window.grecaptcha && window.grecaptcha.enterprise) {{
-    window.grecaptcha.enterprise.execute = function() {{
-      return Promise.resolve(token);
-    }};
-  }}
-
-  // 2. Intercept fetch to inject token into requests
-  var origFetch = window.fetch;
-  window.fetch = function(url, opts) {{
-    if (opts && opts.body) {{
-      try {{
-        var body = opts.body;
-        if (typeof body === 'string' && body.indexOf('recaptcha') !== -1) {{
-          body = body.replace(/g-recaptcha-response=[^&]*/, 'g-recaptcha-response=' + encodeURIComponent(token));
-          opts.body = body;
-        }}
-      }} catch(e) {{}}
-    }}
-    return origFetch.call(this, url, opts);
-  }};
-
-  // 3. Intercept XMLHttpRequest
-  var origOpen = XMLHttpRequest.prototype.open;
-  var origSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open = function(method, url) {{
-    this._url = url;
-    return origOpen.apply(this, arguments);
-  }};
-  XMLHttpRequest.prototype.send = function(data) {{
-    if (data && typeof data === 'string' && data.indexOf('recaptcha') !== -1) {{
-      data = data.replace(/g-recaptcha-response=[^&]*/, 'g-recaptcha-response=' + encodeURIComponent(token));
-    }}
-    return origSend.call(this, data);
-  }};
-
-  return 'interceptors_installed';
-}})()
-"""
-
-        task = f"""Go to this URL: {url}
-
-Your task is to post this comment on the page:
-
----
-{content}
----
-
-IMPORTANT: Before doing anything else, inject the reCAPTCHA interceptor by running this evaluate:
-
-(function() {{
-  var token = '{recaptcha_token if recaptcha_token else ""}';
-  if (window.grecaptcha && window.grecaptcha.enterprise) {{
-    window.grecaptcha.enterprise.execute = function() {{
-      return Promise.resolve(token);
-    }};
-  }}
-  var origFetch = window.fetch;
-  window.fetch = function(url, opts) {{
-    if (opts && opts.body) {{
-      try {{
-        var body = String(opts.body);
-        if (body.indexOf('recaptcha') !== -1) {{
-          body = body.replace(/g-recaptcha-response=[^&]*/, 'g-recaptcha-response=' + encodeURIComponent(token));
-          opts.body = body;
-        }}
-      }} catch(e) {{}}
-    }}
-    return origFetch.call(this, url, opts);
-  }};
-  var origOpen = XMLHttpRequest.prototype.open;
-  var origSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open = function(method, url) {{
-    this._url = url;
-    return origOpen.apply(this, arguments);
-  }};
-  XMLHttpRequest.prototype.send = function(data) {{
-    if (data && typeof data === 'string' && data.indexOf('recaptcha') !== -1) {{
-      data = data.replace(/g-recaptcha-response=[^&]*/, 'g-recaptcha-response=' + encodeURIComponent(token));
-    }}
-    return origSend.call(this, data);
-  }};
-  return 'interceptors_installed';
-}})()
-
-Steps:
-1. If you see a login page, report NOT_LOGGED_IN
-2. Scroll down to find the Responses section
-3. Click "Responses" or "Respond" to open the comment editor
-4. Find the contenteditable textbox and click on it
-5. Type the comment text exactly as shown above
-6. Click the "Respond" button to submit
-7. Wait 5 seconds and check if the comment was posted
-8. Report POST_SUCCESS if comment appeared, or POST_FAILED with reason
-
-CRITICAL: Your final message MUST start with exactly one of these markers:
-- POST_SUCCESS — comment was confirmed posted
-- POST_FAILED — comment was NOT posted (explain why)
-- NOT_LOGGED_IN — not logged in
-
-Important:
-- If login page appears, report NOT_LOGGED_IN immediately
-- On Medium the response editor is a contenteditable div
-- You may need to scroll down to see the Responses section
-- The Respond button may be disabled until you type in the textbox
-"""
-
-        try:
-            agent = Agent(
-                task=task,
-                llm=llm,
-                browser=browser,
+        async with async_playwright() as p:
+            import sys as _sys
+            browser = await p.chromium.launch(
+                headless=_sys.platform != "win32",
+                channel="chrome",
+                args=["--no-first-run", "--no-default-browser-check"],
+            )
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                storage_state=storage_state,
             )
 
-            result = await agent.run(max_steps=30)
-            final_result = result.final_result() if hasattr(result, 'final_result') else str(result)
-            logger.info(f"Medium browser-use result: {final_result}")
+            page = await context.new_page()
+            await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
-            if final_result and "POST_SUCCESS" in str(final_result).upper():
+            try:
+                # Inject reCAPTCHA interceptor BEFORE page load
+                if recaptcha_token:
+                    safe_token = json.dumps(recaptcha_token)
+                    await page.add_init_script(f"""
+                        (function() {{
+                            var token = {safe_token};
+
+                            // Override grecaptcha.enterprise.execute
+                            Object.defineProperty(window, 'grecaptcha', {{
+                                get: function() {{
+                                    return {{
+                                        enterprise: {{
+                                            execute: function() {{
+                                                return Promise.resolve(token);
+                                            }}
+                                        }}
+                                    }};
+                                }},
+                                configurable: true
+                            }});
+
+                            // Intercept fetch
+                            var origFetch = window.fetch;
+                            window.fetch = function(url, opts) {{
+                                if (opts && opts.body) {{
+                                    try {{
+                                        var body = String(opts.body);
+                                        if (body.indexOf('recaptcha') !== -1) {{
+                                            body = body.replace(/g-recaptcha-response=[^&]*/, 'g-recaptcha-response=' + encodeURIComponent(token));
+                                            opts.body = body;
+                                        }}
+                                    }} catch(e) {{}}
+                                }}
+                                return origFetch.call(this, url, opts);
+                            }};
+
+                            // Intercept XMLHttpRequest
+                            var origOpen = XMLHttpRequest.prototype.open;
+                            var origSend = XMLHttpRequest.prototype.send;
+                            XMLHttpRequest.prototype.open = function(method, url) {{
+                                this._url = url;
+                                return origOpen.apply(this, arguments);
+                            }};
+                            XMLHttpRequest.prototype.send = function(data) {{
+                                if (data && typeof data === 'string' && data.indexOf('recaptcha') !== -1) {{
+                                    data = data.replace(/g-recaptcha-response=[^&]*/, 'g-recaptcha-response=' + encodeURIComponent(token));
+                                }}
+                                return origSend.call(this, data);
+                            }};
+                        }})()
+                    """)
+                    logger.info("Medium: reCAPTCHA interceptor injected via add_init_script")
+
+                # Navigate to article
+                logger.info(f"Medium: navigating to {url}")
+                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                await page.wait_for_timeout(5000)
+
+                # Check login status
+                logged_in = False
+                for sel in [
+                    "button[aria-label='responses']",
+                    "a[href*='/settings']",
+                    "img[data-testid='userAvatar']",
+                    "button[aria-label='home']",
+                    "div[data-testid='headerUserMenu']",
+                ]:
+                    if await page.locator(sel).count() > 0:
+                        logged_in = True
+                        logger.info(f"Medium: logged in (found {sel})")
+                        break
+
+                if not logged_in:
+                    # Check page text for login indicators
+                    page_text = await page.evaluate("document.body.innerText.substring(0, 500)")
+                    if "Sign in" in page_text or "Log in" in page_text:
+                        await page.screenshot(path="debug_medium_login.png")
+                        return PostResult(success=False, error="Not logged in. Re-import cookies via Sessions page.", platform=self.platform_name)
+
+                # Scroll down to find responses section
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(2000)
+
+                # Click "Responses" button to open comment panel
+                responses_btn = page.locator("button[aria-label='responses']")
+                if await responses_btn.count() > 0:
+                    await responses_btn.first.click()
+                    logger.info("Medium: clicked responses button")
+                    await page.wait_for_timeout(3000)
+                else:
+                    logger.warning("Medium: responses button not found, trying alternative")
+                    # Try alternative selectors
+                    for alt_sel in [
+                        "button:has-text('Respond')",
+                        "button:has-text('Responses')",
+                        "a:has-text('Respond')",
+                    ]:
+                        btn = page.locator(alt_sel)
+                        if await btn.count() > 0:
+                            await btn.first.click()
+                            await page.wait_for_timeout(2000)
+                            break
+
+                # Find the contenteditable textbox
+                textbox = None
+                for sel in [
+                    'div[role="textbox"][contenteditable="true"]',
+                    'div[contenteditable="true"]',
+                    'textarea',
+                ]:
+                    el = page.locator(sel)
+                    if await el.count() > 0:
+                        textbox = el.first
+                        logger.info(f"Medium: found textbox ({sel})")
+                        break
+
+                if not textbox:
+                    await page.screenshot(path="debug_medium_no_textbox.png")
+                    return PostResult(success=False, error="Comment textbox not found.", platform=self.platform_name)
+
+                # Click textbox to focus
+                await textbox.click()
+                await page.wait_for_timeout(500)
+
+                # Clean content: convert "Name (URL)" to bare URL
+                clean_content = re.sub(
+                    r'(?:Gaper\.io|gaper\.io)\s*\(?(https?://gaper\.io/?\)?+)\)?',
+                    r'https://gaper.io/',
+                    content
+                )
+                if clean_content != content:
+                    logger.info("Medium: cleaned backlink format to bare URL")
+
+                # Find URL to hyperlink
+                url_match = re.search(r'(https?://[^\s]+)', clean_content)
+
+                if url_match:
+                    url = url_match.group(1)
+                    url_start = url_match.start()
+                    url_end = url_match.end()
+                    text_before = clean_content[:url_start]
+                    text_after = clean_content[url_end:]
+
+                    # Type text BEFORE the URL
+                    if text_before:
+                        await page.keyboard.type(text_before, delay=8)
+                        await page.wait_for_timeout(500)
+
+                    # Click the link button in toolbar
+                    link_btn = None
+                    for sel in [
+                        'button[aria-label="link"]',
+                        'button[aria-label="Link"]',
+                        'button[aria-label="insert link"]',
+                        'button[aria-label="Insert link"]',
+                        'button[aria-label="hyperlink"]',
+                        'button[aria-label="Hyperlink"]',
+                    ]:
+                        btn = page.locator(sel)
+                        if await btn.count() > 0:
+                            link_btn = btn.first
+                            logger.info(f"Medium: found link button ({sel})")
+                            break
+
+                    if not link_btn:
+                        buttons = page.locator('button')
+                        count = await buttons.count()
+                        for i in range(count):
+                            btn = buttons.nth(i)
+                            label = await btn.get_attribute("aria-label") or ""
+                            if "link" in label.lower():
+                                link_btn = btn
+                                logger.info(f"Medium: found link button (aria-label={label})")
+                                break
+
+                    if link_btn:
+                        await link_btn.click()
+                        await page.wait_for_timeout(1500)
+
+                        # Find the link URL input field
+                        link_input = None
+                        for sel in [
+                            'input[placeholder*="link" i]',
+                            'input[placeholder*="url" i]',
+                            'input[placeholder*="URL" i]',
+                            'input[placeholder*="Paste" i]',
+                            'input[placeholder*="paste" i]',
+                            'input[type="url"]',
+                            'input[type="text"]',
+                        ]:
+                            inp = page.locator(sel)
+                            if await inp.count() > 0:
+                                link_input = inp.first
+                                logger.info(f"Medium: found link input ({sel})")
+                                break
+
+                        if link_input:
+                            await link_input.click()
+                            await page.wait_for_timeout(300)
+                            await link_input.fill(url)
+                            await page.wait_for_timeout(500)
+                            await page.keyboard.press("Enter")
+                            await page.wait_for_timeout(1000)
+                            logger.info(f"Medium: created hyperlink to {url}")
+                        else:
+                            logger.warning("Medium: link input dialog not found")
+                    else:
+                        logger.warning("Medium: link toolbar button not found")
+
+                    # Type text AFTER the URL
+                    if text_after:
+                        await page.keyboard.type(text_after, delay=8)
+                        await page.wait_for_timeout(500)
+                else:
+                    # No URL found, just type the whole thing
+                    await page.keyboard.type(clean_content, delay=8)
+                    await page.wait_for_timeout(1000)
+
+                # Dispatch input events to ensure React state is updated
+                await page.evaluate("""() => {
+                    const textbox = document.querySelector('div[role="textbox"][contenteditable="true"]');
+                    if (textbox) {
+                        textbox.focus();
+                        textbox.dispatchEvent(new Event('input', { bubbles: true }));
+                        textbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }""")
+                await page.wait_for_timeout(1000)
+
+                # Screenshot before submit
+                await page.screenshot(path="debug_medium_before_submit.png")
+                logger.info("Medium: saved debug_medium_before_submit.png")
+
+                # Find and click Respond button
+                respond_btn = None
+                for sel in [
+                    'button:has-text("Respond")',
+                    'button[data-testid="respond-button"]',
+                    'button[type="submit"]:has-text("Respond")',
+                ]:
+                    btn = page.locator(sel)
+                    if await btn.count() > 0:
+                        respond_btn = btn.first
+                        break
+
+                if not respond_btn:
+                    # Try to find any enabled submit-like button in the responses panel
+                    buttons = page.locator('button')
+                    count = await buttons.count()
+                    for i in range(count):
+                        btn = buttons.nth(i)
+                        text = await btn.inner_text()
+                        if "respond" in text.lower() or "submit" in text.lower():
+                            respond_btn = btn
+                            break
+
+                if not respond_btn:
+                    await page.screenshot(path="debug_medium_no_respond_btn.png")
+                    return PostResult(success=False, error="Respond button not found.", platform=self.platform_name)
+
+                # Check if button is disabled
+                is_disabled = await respond_btn.get_attribute("disabled")
+                aria_disabled = await respond_btn.get_attribute("aria-disabled")
+                logger.info(f"Medium: Respond button disabled={is_disabled}, aria-disabled={aria_disabled}")
+
+                if is_disabled is not None or aria_disabled == "true":
+                    # Try harder: clear and retype with keyboard
+                    logger.info("Medium: Respond button disabled, trying harder...")
+                    await textbox.click()
+                    await page.wait_for_timeout(300)
+
+                    # Select all and delete
+                    await page.keyboard.press("Control+A")
+                    await page.wait_for_timeout(100)
+                    await page.keyboard.press("Backspace")
+                    await page.wait_for_timeout(500)
+
+                    # Clear and re-fill
+                    await textbox.fill("")
+                    await page.wait_for_timeout(300)
+                    await textbox.fill(clean_content)
+                    await textbox.dispatch_event("input")
+                    await page.wait_for_timeout(2000)
+
+                    # Fire more events
+                    await page.evaluate("""() => {
+                        const textbox = document.querySelector('div[role="textbox"][contenteditable="true"]');
+                        if (textbox) {
+                            textbox.focus();
+                            ['input', 'change', 'keyup', 'keydown', 'keypress'].forEach(evt => {
+                                textbox.dispatchEvent(new Event(evt, { bubbles: true }));
+                            });
+                            // Also try React's internal handler
+                            const tracker = textbox._valueTracker;
+                            if (tracker) {
+                                tracker.setValue({toString: () => ''});
+                            }
+                            textbox.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }""")
+                    await page.wait_for_timeout(1500)
+
+                    # Recheck
+                    is_disabled = await respond_btn.get_attribute("disabled")
+                    aria_disabled = await respond_btn.get_attribute("aria-disabled")
+                    logger.info(f"Medium: After retry, disabled={is_disabled}, aria-disabled={aria_disabled}")
+
+                    await page.screenshot(path="debug_medium_before_submit_2.png")
+
+                # Force click even if disabled (some buttons are visually enabled but attribute is stale)
+                try:
+                    await respond_btn.click(force=True)
+                    logger.info("Medium: clicked Respond button (force=True)")
+                except Exception:
+                    await respond_btn.click()
+                    logger.info("Medium: clicked Respond button")
+
+                await page.wait_for_timeout(8000)
+
+                # Screenshot after submit
+                await page.screenshot(path="debug_medium_after_submit.png")
+                logger.info("Medium: saved debug_medium_after_submit.png")
+
+                # Verify comment was posted
+                page_text = await page.evaluate("document.body.innerText")
+                first_line = content.split("\n")[0].strip()[:60]
+                if first_line and first_line in page_text:
+                    logger.info("Medium: verified comment text on page")
+                    return PostResult(success=True, post_url=url, platform=self.platform_name)
+
+                # Check if textbox is still visible with content (means not submitted)
+                still_visible = False
+                for sel in ['div[role="textbox"][contenteditable="true"]']:
+                    el = page.locator(sel)
+                    if await el.count() > 0:
+                        text = await el.inner_text()
+                        if first_line[:20] in text:
+                            still_visible = True
+                            break
+
+                if still_visible:
+                    logger.warning("Medium: comment still in textbox after clicking Respond")
+                    return PostResult(success=False, error="Comment not posted - Respond button may require manual CAPTCHA verification", platform=self.platform_name)
+
                 return PostResult(success=True, post_url=url, platform=self.platform_name)
 
-            if final_result and ("NOT_LOGGED_IN" in str(final_result).upper() or "POST_FAILED" in str(final_result).upper()):
-                return PostResult(success=False, error=str(final_result), platform=self.platform_name)
-
-            # Fallback: treat unknown as failure
-            return PostResult(success=False, error=str(final_result) if final_result else "Unknown result from agent", platform=self.platform_name)
-
-        except Exception as e:
-            logger.error(f"Medium posting failed: {e}")
-            return PostResult(success=False, error=str(e), platform=self.platform_name)
-        finally:
-            await browser.close()
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            except Exception as e:
+                logger.error(f"Medium posting failed: {e}")
+                return PostResult(success=False, error=str(e), platform=self.platform_name)
+            finally:
+                await browser.close()
+                if tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)

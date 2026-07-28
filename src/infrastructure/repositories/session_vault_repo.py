@@ -10,7 +10,18 @@ class SessionVaultRepository(BaseRepository[PlatformSession]):
         super().__init__(session, PlatformSession)
 
     def get_by_domain(self, domain: str) -> Optional[PlatformSession]:
-        return self._session.query(PlatformSession).filter(PlatformSession.domain == domain).first()
+        # Try exact match first
+        session = self._session.query(PlatformSession).filter(PlatformSession.domain == domain).first()
+        if session:
+            return session
+        # Fallback: try parent domains (e.g. dsvgroup.medium.com -> medium.com)
+        parts = domain.split(".")
+        for i in range(1, len(parts) - 1):
+            parent = ".".join(parts[i:])
+            session = self._session.query(PlatformSession).filter(PlatformSession.domain == parent).first()
+            if session:
+                return session
+        return None
 
     def save_session(self, domain: str, encrypted_data: str, expires_at: Optional[datetime] = None) -> PlatformSession:
         existing = self.get_by_domain(domain)

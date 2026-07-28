@@ -1099,7 +1099,7 @@ async def get_article_for_review(platform: str, article_id: int):
         return {
             "success": True,
             "title": article.title or "",
-            "body": article.body or "",
+            "body": article.body_markdown or "",
             "description": getattr(article, 'description', '') or '',
             "tags": getattr(article, 'tags', []) or [],
         }
@@ -1136,7 +1136,7 @@ async def update_and_publish_article(request: Request):
             if not existing:
                 return {"success": False, "error": "Draft not found on Dev.to"}
             existing.title = title
-            existing.body = body
+            existing.body_markdown = body
             existing.description = description
             existing.tags = tags
             existing.published = True
@@ -1155,7 +1155,7 @@ async def update_and_publish_article(request: Request):
             if not existing:
                 return {"success": False, "error": "Draft not found on WordPress"}
             existing.title = title
-            existing.body = body
+            existing.body_markdown = body
             existing.description = description
             existing.tags = tags
             existing.published = True

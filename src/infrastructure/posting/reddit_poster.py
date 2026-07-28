@@ -9,6 +9,13 @@ from src.infrastructure.posting.base_poster import BasePlatformPoster, PostResul
 logger = logging.getLogger(__name__)
 
 
+def _to_old_reddit_url(url: str) -> str:
+    """Convert a Reddit URL to old.reddit.com for simpler posting UI."""
+    old_url = url.replace("www.reddit.com", "old.reddit.com")
+    old_url = old_url.replace("://reddit.com", "://old.reddit.com")
+    return old_url.split("?")[0].rstrip("/")
+
+
 class RedditPoster(BasePlatformPoster):
     @property
     def platform_name(self) -> str:
@@ -31,6 +38,10 @@ class RedditPoster(BasePlatformPoster):
         from browser_use import Agent, Browser, BrowserProfile
         from browser_use.llm.google.chat import ChatGoogle
         import src.config as config
+
+        post_url = _to_old_reddit_url(url)
+        if post_url != url:
+            logger.info(f"Reddit: using old.reddit.com URL: {post_url}")
 
         llm = ChatGoogle(
             model="gemini-3.5-flash",
@@ -86,23 +97,24 @@ class RedditPoster(BasePlatformPoster):
         browser_profile = BrowserProfile(**browser_kwargs)
         browser = Browser(browser_profile=browser_profile)
 
-        task = f"""Go to this URL: {url}
+        task = f"""Go to this URL: {post_url}
 
-Your task is to post this comment on the Reddit thread:
+Your task is to post this comment on the Reddit thread using old.reddit.com (classic Reddit UI):
 
 ---
 {content}
 ---
 
 Steps:
-1. Check if you are logged in. If you see a login page or "Log In" button, report NOT_LOGGED_IN
-2. Scroll down to find the comment/reply box
-3. If there is a "reply" link or button, click it to open the reply box
-4. Find the comment textarea (it may be named "text" or be a RichText editor)
-5. Click on the textarea and type the comment exactly as shown above
-6. Click the "Save" or "Comment" button to submit
-7. Wait 5 seconds and verify the comment was posted
-8. Report POST_SUCCESS if comment appeared, or POST_FAILED with reason
+1. Stay on old.reddit.com — do NOT switch to new Reddit
+2. Check if you are logged in (username shown top-right). If you see "login" or a login page, report NOT_LOGGED_IN
+3. If you see "You've been blocked" or "network security", report POST_FAILED - BLOCKED
+4. Scroll to the main comment box at the top, or click "reply" under a comment to open a reply box
+5. Find the plain textarea (name="text") — old Reddit uses a simple text box, not a rich editor
+6. Click the textarea and type the comment exactly as shown above
+7. Click the "save" button to submit
+8. Wait 5 seconds and verify the comment appeared on the page
+9. Report POST_SUCCESS if comment appeared, or POST_FAILED with reason
 
 CRITICAL: Your final message MUST start with exactly one of these markers:
 - POST_SUCCESS — comment was confirmed posted
@@ -110,9 +122,9 @@ CRITICAL: Your final message MUST start with exactly one of these markers:
 - NOT_LOGGED_IN — not logged in
 
 Important:
-- Reddit uses old.reddit.com or new.reddit.com - the layout may differ
+- old.reddit.com uses plain textareas and a "save" button (lowercase)
+- If redirected away from old.reddit.com, go back to the old.reddit.com URL
 - If you see "Log In" or are redirected to a login page, report NOT_LOGGED_IN
-- The comment box may need you to click "reply" first
 """
 
         try:

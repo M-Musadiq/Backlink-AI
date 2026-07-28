@@ -997,6 +997,7 @@ async def list_articles():
             repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
             for a in repo.get_my_articles():
                 articles.append({
+                    "id": a.id,
                     "platform": "Dev.to",
                     "title": a.title,
                     "url": a.url or "",
@@ -1014,6 +1015,7 @@ async def list_articles():
             )
             for a in repo.get_my_articles():
                 articles.append({
+                    "id": a.id,
                     "platform": "WordPress",
                     "title": a.title,
                     "url": a.url or "",
@@ -1024,6 +1026,146 @@ async def list_articles():
             logger.warning(f"Failed to fetch WordPress articles: {e}")
 
     return {"success": True, "articles": articles}
+
+
+@app.post("/api/articles/publish-draft")
+async def publish_draft_article(request: Request):
+    """Publish an existing draft article."""
+    from src.domain.entities import Article
+    from src.infrastructure.devto_repository import DevtoArticleRepository
+    from src.infrastructure.wordpress_repository import WordPressArticleRepository
+    import src.config as config
+
+    try:
+        body = await request.json()
+        article_id = body.get("article_id")
+        platform = body.get("platform", "")
+
+        if not article_id or not platform:
+            return {"success": False, "error": "article_id and platform required"}
+
+        if platform == "Dev.to" and config.DEVTO_API_KEY:
+            repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
+            articles = repo.get_my_articles()
+            draft = next((a for a in articles if a.id == article_id), None)
+            if not draft:
+                return {"success": False, "error": "Draft not found on Dev.to"}
+            draft.published = True
+            result = repo.update(article_id, draft)
+            return {"success": True, "url": result.url or "", "platform": "Dev.to"}
+
+        if platform == "WordPress" and config.WP_ACCESS_TOKEN and config.WP_SITE_ID:
+            repo = WordPressArticleRepository(
+                access_token=config.WP_ACCESS_TOKEN,
+                site_id=config.WP_SITE_ID,
+            )
+            articles = repo.get_my_articles()
+            draft = next((a for a in articles if a.id == article_id), None)
+            if not draft:
+                return {"success": False, "error": "Draft not found on WordPress"}
+            draft.published = True
+            result = repo.update(article_id, draft)
+            return {"success": True, "url": result.url or "", "platform": "WordPress"}
+
+        return {"success": False, "error": f"Platform '{platform}' not configured"}
+    except Exception as e:
+        logger.error(f"Publish draft failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/articles/get/{platform}/{article_id}")
+async def get_article_for_review(platform: str, article_id: int):
+    """Fetch a draft article's content so it can be loaded into the form."""
+    import src.config as config
+
+    try:
+        if platform == "Dev.to" and config.DEVTO_API_KEY:
+            from src.infrastructure.devto_repository import DevtoArticleRepository
+            repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
+        elif platform == "WordPress" and config.WP_ACCESS_TOKEN and config.WP_SITE_ID:
+            from src.infrastructure.wordpress_repository import WordPressArticleRepository
+            repo = WordPressArticleRepository(
+                access_token=config.WP_ACCESS_TOKEN,
+                site_id=config.WP_SITE_ID,
+            )
+        else:
+            return {"success": False, "error": f"Platform '{platform}' not configured"}
+
+        articles = repo.get_my_articles()
+        article = next((a for a in articles if a.id == article_id), None)
+        if not article:
+            return {"success": False, "error": "Article not found"}
+
+        return {
+            "success": True,
+            "title": article.title or "",
+            "body": article.body or "",
+            "description": getattr(article, 'description', '') or '',
+            "tags": getattr(article, 'tags', []) or [],
+        }
+    except Exception as e:
+        logger.error(f"Get article failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/articles/update-and-publish")
+async def update_and_publish_article(request: Request):
+    """Update a draft article's content and publish it."""
+    import src.config as config
+
+    try:
+        data = await request.json()
+        article_id = data.get("article_id")
+        platform = data.get("platform", "")
+        title = data.get("title", "")
+        body = data.get("body", "")
+        description = data.get("description", "")
+        tags = data.get("tags", [])
+
+        if not article_id or not platform:
+            return {"success": False, "error": "article_id and platform required"}
+        if not title or not body:
+            return {"success": False, "error": "title and body are required"}
+
+        if platform == "Dev.to" and config.DEVTO_API_KEY:
+            from src.infrastructure.devto_repository import DevtoArticleRepository
+            from src.domain.entities import Article
+            repo = DevtoArticleRepository(api_key=config.DEVTO_API_KEY)
+            articles = repo.get_my_articles()
+            existing = next((a for a in articles if a.id == article_id), None)
+            if not existing:
+                return {"success": False, "error": "Draft not found on Dev.to"}
+            existing.title = title
+            existing.body = body
+            existing.description = description
+            existing.tags = tags
+            existing.published = True
+            result = repo.update(article_id, existing)
+            return {"success": True, "url": result.url or "", "platform": "Dev.to"}
+
+        if platform == "WordPress" and config.WP_ACCESS_TOKEN and config.WP_SITE_ID:
+            from src.infrastructure.wordpress_repository import WordPressArticleRepository
+            from src.domain.entities import Article
+            repo = WordPressArticleRepository(
+                access_token=config.WP_ACCESS_TOKEN,
+                site_id=config.WP_SITE_ID,
+            )
+            articles = repo.get_my_articles()
+            existing = next((a for a in articles if a.id == article_id), None)
+            if not existing:
+                return {"success": False, "error": "Draft not found on WordPress"}
+            existing.title = title
+            existing.body = body
+            existing.description = description
+            existing.tags = tags
+            existing.published = True
+            result = repo.update(article_id, existing)
+            return {"success": True, "url": result.url or "", "platform": "WordPress"}
+
+        return {"success": False, "error": f"Platform '{platform}' not configured"}
+    except Exception as e:
+        logger.error(f"Update and publish failed: {e}")
+        return {"success": False, "error": str(e)}
 
 
 # === Platform Config Endpoints ===

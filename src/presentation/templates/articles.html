@@ -7,7 +7,7 @@
             <h2 class="text-3xl font-extrabold text-white tracking-tight">Articles</h2>
             <p class="text-gray-400 mt-1 text-sm font-medium">Generate and publish articles to Dev.to &amp; WordPress</p>
         </div>
-        <button onclick="loadMyArticles()" class="btn-premium-secondary text-sm font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2">
+        <button onclick="document.getElementById('articles-list').scrollIntoView({behavior:'smooth'})" class="btn-premium-secondary text-sm font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
             My Articles
         </button>
@@ -264,7 +264,7 @@
             });
             const data = await resp.json();
 
-                if (data.success) {
+            if (data.success) {
                 const platforms = [];
                 if (data.devto_url) platforms.push('Dev.to: ' + data.devto_url);
                 if (data.wordpress_url) platforms.push('WordPress: ' + data.wordpress_url);
@@ -276,14 +276,8 @@
                         if (card) card.remove();
                         window._suggestedTopics.splice(idx, 1);
                     }
-                    selectedTopic = null;
                 }
-                document.getElementById('article-topic').value = '';
-                document.getElementById('article-description').value = '';
-                document.getElementById('article-keywords').value = '';
-                document.getElementById('article-tags').value = '';
-                document.getElementById('article-body').value = '';
-                document.getElementById('char-count').textContent = '0 characters';
+                resetForm();
                 loadMyArticles();
             } else {
                 showToast(data.error || 'Publish failed', 'error');
@@ -294,6 +288,109 @@
             btn.disabled = false;
             btn.textContent = 'Publish Article';
         }
+    }
+
+    async function publishDraft(platform, articleId) {
+        try {
+            const resp = await fetch('/api/articles/publish-draft', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({article_id: articleId, platform: platform})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Published! ' + (data.url || ''));
+                loadMyArticles();
+            } else {
+                showToast(data.error || 'Failed to publish', 'error');
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        }
+    }
+
+    async function reviewDraft(platform, articleId) {
+        try {
+            const resp = await fetch(`/api/articles/get/${platform}/${articleId}`);
+            const data = await resp.json();
+            if (!data.success) {
+                showToast(data.error || 'Failed to load article', 'error');
+                return;
+            }
+            document.getElementById('article-topic').value = data.title || '';
+            document.getElementById('article-description').value = data.description || '';
+            document.getElementById('article-tags').value = (data.tags || []).join(', ');
+            document.getElementById('article-body').value = data.body || '';
+            document.getElementById('char-count').textContent = (data.body || '').length + ' characters';
+            document.getElementById('publish-devto').checked = platform === 'Dev.to';
+            document.getElementById('publish-wordpress').checked = platform === 'WordPress';
+            window._editingArticle = { platform, id: articleId };
+            const btn = document.getElementById('btn-publish');
+            btn.textContent = 'Save & Publish';
+            btn.onclick = updateAndPublish;
+            document.getElementById('articles-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            showToast('Editing draft. Make changes and click "Save & Publish".');
+        } catch (e) {
+            showToast('Failed to load article: ' + e.message, 'error');
+        }
+    }
+
+    async function updateAndPublish() {
+        const editing = window._editingArticle;
+        if (!editing) return publishArticle();
+
+        const payload = {
+            article_id: editing.id,
+            platform: editing.platform,
+            title: document.getElementById('article-topic').value.trim(),
+            body: document.getElementById('article-body').value,
+            description: document.getElementById('article-description').value.trim(),
+            tags: document.getElementById('article-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+        };
+
+        if (!payload.title || !payload.body) {
+            showToast('Title and body are required', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-publish');
+        btn.disabled = true;
+        btn.textContent = 'Saving & Publishing...';
+
+        try {
+            const resp = await fetch('/api/articles/update-and-publish', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Updated & published! ' + (data.url || ''));
+                resetForm();
+                loadMyArticles();
+            } else {
+                showToast(data.error || 'Failed', 'error');
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Publish Article';
+            btn.onclick = publishArticle;
+        }
+    }
+
+    function resetForm() {
+        window._editingArticle = null;
+        selectedTopic = null;
+        document.getElementById('article-topic').value = '';
+        document.getElementById('article-description').value = '';
+        document.getElementById('article-keywords').value = '';
+        document.getElementById('article-tags').value = '';
+        document.getElementById('article-body').value = '';
+        document.getElementById('char-count').textContent = '0 characters';
+        document.getElementById('btn-publish').textContent = 'Publish Article';
+        document.getElementById('btn-publish').onclick = publishArticle;
     }
 
     async function loadMyArticles() {
@@ -318,7 +415,11 @@
                                     ${a.published_at ? '<span class="text-[10px] text-gray-500">' + new Date(a.published_at).toLocaleDateString() + '</span>' : ''}
                                 </div>
                             </div>
-                            <div class="flex gap-2">
+                            <div class="flex gap-2 items-center">
+                                ${a.status === 'draft' ? `
+                                    <button onclick="reviewDraft('${a.platform}', ${a.id})" class="btn-premium-primary text-xs font-semibold py-1.5 px-3 rounded-lg">Review</button>
+                                    <button onclick="publishDraft('${a.platform}', ${a.id})" class="btn-premium-success text-xs font-semibold py-1.5 px-3 rounded-lg">Publish</button>
+                                ` : ''}
                                 ${a.url ? `<a href="${a.url}" target="_blank" class="btn-premium-secondary text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                                     View

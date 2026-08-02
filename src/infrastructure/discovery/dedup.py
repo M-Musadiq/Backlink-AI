@@ -52,7 +52,15 @@ def extract_domain(url: str) -> str:
         return ""
 
 
-EXCLUDED_DOMAINS = {"agents.stackoverflow.com"}
+EXCLUDED_DOMAINS = {
+    "agents.stackoverflow.com",
+    # Not targeting these platforms in discovery
+    "linkedin.com",
+    "youtube.com",
+    "youtu.be",
+    "youtube-nocookie.com",
+    "ytimg.com",
+}
 
 
 def similarity_score(title1: str, title2: str) -> float:

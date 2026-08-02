@@ -6,8 +6,11 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*dateti
 sys.path.insert(0, ".")
 
 import asyncio
+import uuid
+import threading
+from typing import List, Optional
 from datetime import datetime, timezone
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -21,6 +24,16 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Backlink AI Dashboard")
 templates = Jinja2Templates(directory="src/presentation/templates")
+
+_discovery_runs: dict = {}
+_discovery_lock = threading.Lock()
+
+
+@app.on_event("startup")
+async def ensure_tables():
+    from src.infrastructure.database import Base, engine
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+    logger.info("Ensured all tables exist (no-op if already present)")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -78,11 +91,15 @@ async def prospects_page(request: Request, status: str = ""):
     """Prospects page with filtering."""
     session = SessionLocal()
     try:
+        from src.infrastructure.posting.session_manager import SessionManager
         prospect_repo = ProspectRepository(session)
+        session_mgr = SessionManager(session)
 
         if status:
             if status == "discovered":
                 prospects = prospect_repo.get_by_statuses(["discovered", "scraped"])
+            elif status == "waiting_for_login":
+                prospects = prospect_repo.get_by_status("waiting_for_login")
             else:
                 prospects = prospect_repo.get_by_status(status)
         else:
@@ -91,6 +108,13 @@ async def prospects_page(request: Request, status: str = ""):
         # Filter out excluded domains
         from src.infrastructure.discovery.dedup import EXCLUDED_DOMAINS, extract_domain
         prospects = [p for p in prospects if not p.tracked_url or extract_domain(p.tracked_url.url) not in EXCLUDED_DOMAINS]
+
+        # Check session per domain
+        seen_domains = {}
+        for p in prospects:
+            if p.domain not in seen_domains:
+                seen_domains[p.domain] = session_mgr.is_session_valid(p.domain)
+            p._has_session = seen_domains[p.domain]
 
         return templates.TemplateResponse(
             request=request,
@@ -143,13 +167,29 @@ async def activity_page(request: Request):
 
 @app.get("/sessions", response_class=HTMLResponse)
 async def sessions_page(request: Request):
-    """Session management page."""
+    """Session management page — shows all actionable sites from knowledge base."""
     from src.infrastructure.posting.session_manager import SessionManager
+    from src.infrastructure.site_knowledge.site_knowledge_service import SiteKnowledgeService
 
     session = SessionLocal()
     try:
         sm = SessionManager(session)
+        svc = SiteKnowledgeService(session)
         sessions = sm.get_all_sessions()
+
+        # Get all actionable sites from site_knowledge
+        all_sites = svc.get_summary()
+        actionable_domains = set()
+        for site in all_sites:
+            if site.get("posting_capable") or site.get("listing_capable"):
+                domain = site["domain"]
+                actionable_domains.add(domain)
+                if domain not in sessions:
+                    sessions[domain] = {
+                        "valid": sm.is_session_valid(domain),
+                        "last_used": None,
+                        "expires_at": None,
+                    }
 
         return templates.TemplateResponse(
             request=request,
@@ -210,62 +250,61 @@ async def scrape_url(url_id: int):
             scraper.close()
         session.close()
 
+@app.post("/api/discovery/generic/start")
+async def start_discovery_generic(request: Request):
+    """Start generic discovery in background and return a run_id for monitoring.
 
-@app.post("/api/discovery")
-async def run_discovery(keywords: str = Form(...)):
-    """Trigger discovery run + auto-scrape."""
+    Optional: pass custom keywords as JSON body {"keywords": ["kw1", "kw2", ...]}
+    If omitted, keywords are auto-extracted from gaper.io.
+    """
     from src.infrastructure.discovery.discovery_node import DiscoveryNode
-    from src.infrastructure.scrapers.scrape_orchestrator import ScrapeOrchestrator
-    from src.infrastructure.repositories.platform_config_repo import PlatformConfigRepository
 
-    session = SessionLocal()
-    scraper = None
-    try:
-        node = DiscoveryNode(session)
-        keyword_list = [k.strip() for k in keywords.split(",")]
-        stats = node.discover(keywords=keyword_list, num_per_platform=5)
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    keywords: Optional[List[str]] = body.get("keywords") if isinstance(body, dict) else None
 
-        # Auto-scrape only the URLs we just inserted
-        tracked_repo = TrackedURLRepository(session)
-        prospect_repo = ProspectRepository(session)
-        config_repo = PlatformConfigRepository(session)
-        scraper = ScrapeOrchestrator(config_store=config_repo, timeout=15)
-        inserted_entities = stats.pop("inserted_entities", [])
+    run_id = str(uuid.uuid4())
+    monitor: dict = {
+        "run_id": run_id,
+        "status": "starting",
+        "phase": "",
+        "progress_pct": 0,
+        "log": [],
+        "keywords": keywords or [],
+    }
 
-        def _do_scrape():
-            scraped = 0
-            for url_entity in inserted_entities:
-                try:
-                    content = scraper.scrape(url_entity.url)
-                    if not content.is_empty and len(content.body) > 100:
-                        existing = prospect_repo.get_by_url(url_entity.url)
-                        if not existing:
-                            from src.infrastructure.models import Prospect
-                            prospect = Prospect(
-                                tracked_url_id=url_entity.id,
-                                url=url_entity.url,
-                                domain=url_entity.domain,
-                                title=content.title or url_entity.title,
-                                body_preview=content.body[:2000],
-                                status="discovered",
-                            )
-                            session.add(prospect)
-                            session.commit()
-                            scraped += 1
-                        tracked_repo.mark_scraped(url_entity.id)
-                except Exception as e:
-                    logger.warning(f"Failed to scrape {url_entity.url}: {e}")
-            return scraped
+    with _discovery_lock:
+        _discovery_runs[run_id] = monitor
 
-        scraped = await asyncio.to_thread(_do_scrape)
-        stats["scraped"] = scraped
-        return {"success": True, "stats": stats}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-    finally:
-        if scraper:
-            scraper.close()
-        session.close()
+    def _run():
+        session = SessionLocal()
+        try:
+            node = DiscoveryNode(session)
+            node.discover_generic(monitor=monitor, keywords=keywords)
+        except Exception as e:
+            monitor["status"] = "failed"
+            monitor["error"] = str(e)
+            monitor["log"].append(f"FAILED: {e}")
+            logger.error(f"Generic discovery {run_id} failed: {e}")
+        finally:
+            session.close()
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    return {"success": True, "run_id": run_id}
+
+
+@app.get("/api/discovery/generic/status/{run_id}")
+async def get_discovery_status(run_id: str):
+    """Poll status of a running generic discovery."""
+    with _discovery_lock:
+        monitor = _discovery_runs.get(run_id)
+    if not monitor:
+        return {"success": False, "error": "Run not found"}
+    return {"success": True, "monitor": monitor}
+
+
+# === Generic Interaction Endpoints ===
 
 
 @app.post("/api/evaluate/{prospect_id}")
@@ -517,58 +556,6 @@ async def list_sessions():
         session.close()
 
 
-async def _solve_turnstile_if_present(page, page_url: str):
-    """Detect Turnstile CAPTCHA on page and solve via 2Captcha."""
-    try:
-        # Look for Turnstile iframe or widget
-        turnstile_frame = page.frame_locator("iframe[src*='turnstile'], iframe[src*='challenges.cloudflare.com']")
-        turnstile_div = page.locator("[data-sitekey*='0x'], div.cf-turnstile")
-
-        sitekey = None
-
-        # Try getting sitekey from div attribute
-        if await turnstile_div.count() > 0:
-            sitekey = await turnstile_div.first.get_attribute("data-sitekey")
-
-        # Try getting sitekey from intercepted params
-        if not sitekey:
-            params = await page.evaluate("window.__turnstileParams || null")
-            if params and params.get("sitekey"):
-                sitekey = params["sitekey"]
-
-        if not sitekey:
-            return
-
-        print(f"Turnstile detected, sitekey={sitekey[:20]}... Solving via 2Captcha...")
-
-        from src.infrastructure.posting.captcha_solver import solve_turnstile
-        token = await solve_turnstile(sitekey=sitekey, page_url=page_url)
-
-        if not token:
-            print("2Captcha: no token returned")
-            return
-
-        # Inject token into the hidden input
-        await page.evaluate(f"""
-            const input = document.querySelector('[name="cf-turnstile-response"], [name="g-recaptcha-response"]');
-            if (input) {{
-                input.value = '{token}';
-                input.dispatchEvent(new Event('input', {{bubbles: true}}));
-                input.dispatchEvent(new Event('change', {{bubbles: true}}));
-            }}
-            // Also try calling the callback directly
-            if (window.__turnstileCallback) {{
-                window.__turnstileCallback('{token}');
-            }}
-            // Try clicking submit/verify button
-            const btn = document.querySelector('button[type="submit"], input[type="submit"], .cf-turnstile-error button');
-            if (btn) btn.click();
-        """)
-        print(f"Turnstile token injected")
-
-    except Exception as e:
-        print(f"Turnstile solve skipped: {e}")
-
 
 @app.post("/api/sessions/import-cookies/{domain:path}")
 async def import_cookies(domain: str, request: Request):
@@ -630,6 +617,13 @@ async def import_cookies(domain: str, request: Request):
 
         sm = SessionManager(session)
         sm.save_cookies(domain, normalized, expires_at=datetime.now(timezone.utc) + timedelta(days=30))
+
+        # Auto-advance waiting_login prospects for this domain
+        pr = ProspectRepository(session)
+        advanced = pr.advance_waiting_login_to_discovered(domain)
+        if advanced:
+            logger.info(f"Advanced {advanced} waiting_login prospects to discovered for {domain}")
+
         return {"success": True, "cookies_count": len(normalized), "domain": domain}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -637,123 +631,7 @@ async def import_cookies(domain: str, request: Request):
         session.close()
 
 
-@app.post("/api/sessions/capture/{domain:path}")
-async def capture_session(domain: str):
-    """Launch Playwright to capture login cookies for a platform.
-    Opens a visible browser. Detects login automatically and captures cookies.
-    """
-    import asyncio
-    from playwright.async_api import async_playwright
-    from src.infrastructure.posting.session_manager import SessionManager
-    from datetime import timedelta
 
-    PLATFORM_CONFIG = {
-        "reddit.com": {"url": "https://www.reddit.com", "logged_in_selector": "#email-collection-tooltip, a[href='/user/'], header button[aria-label='user menu']"},
-        "dev.to": {"url": "https://dev.to/enter", "logged_in_selector": "a.profile-preview-card__trigger, a[href='/dashboard'], .crayons-header__menu"},
-        "stackoverflow.com": {"url": "https://stackoverflow.com/users/login", "logged_in_selector": ".my-profile, .topbar-icon, .js-topbar-telemetry, a[href*='/users/edit/']"},
-        "news.ycombinator.com": {"url": "https://news.ycombinator.com/login", "logged_in_selector": "a[href='user?id='], span.pagetop a:last-child"},
-        "hashnode.com": {"url": "https://hashnode.com", "logged_in_selector": "button[data-testid='user-menu'], a[href*='/dashboard']"},
-        "medium.com": {"url": "https://medium.com", "logged_in_selector": "button[aria-label='User menu'], img[data-testid='userAvatar'], a[href*='/settings'], img[alt*='Avatar']"},
-    }
-
-    config = PLATFORM_CONFIG.get(domain)
-    if not config:
-        return {"success": False, "error": f"Unknown platform: {domain}"}
-
-    try:
-        async with async_playwright() as p:
-            # Use real Chrome to avoid bot detection (Chromium is fingerprinted)
-            browser = await p.chromium.launch(
-                headless=False,
-                channel="chrome",
-                args=[
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                ],
-            )
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            )
-            # Remove webdriver flag
-            page = await context.new_page()
-            await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            await page.goto(config["url"], wait_until="domcontentloaded", timeout=60000)
-
-            # Auto-solve Turnstile CAPTCHA if present
-            await _solve_turnstile_if_present(page, config["url"])
-
-            # Poll for login detection (max 5 minutes)
-            logged_in = False
-            for i in range(60):  # 60 x 5 seconds = 5 minutes
-                await page.wait_for_timeout(5000)
-                current_url = page.url
-                try:
-                    selector = config["logged_in_selector"]
-                    if await page.locator(selector).count() > 0:
-                        logged_in = True
-                        print(f"[SESSION] {domain}: logged in (selector) at {current_url}")
-                        break
-                except Exception:
-                    pass
-                # Cookie-based fallback: check for auth cookies
-                try:
-                    auth_cookies = await context.cookies()
-                    auth_names = {c["name"] for c in auth_cookies}
-                    # SO uses 'acct', dev.to uses '_devto', reddit uses 'reddit_session', medium uses 'prism' or 'sid'
-                    if any(n in auth_names for n in ["acct", "_devto", "reddit_session", " loggedIn", "user", "prism", "sid", "_xsrf"]):
-                        logged_in = True
-                        print(f"[SESSION] {domain}: logged in (cookie) at {current_url}")
-                        break
-                    if i % 6 == 0:
-                        domain_cookies = [c["name"] for c in auth_cookies if domain in c.get("domain", "")]
-                        print(f"[SESSION] {domain}: cookies on {domain}: {domain_cookies}")
-                except Exception:
-                    pass
-                if i % 6 == 0:
-                    print(f"[SESSION] {domain}: waiting... ({i*5}s) url={current_url}")
-                # Retry CAPTCHA solve every 15 seconds if still not logged in
-                if i > 0 and i % 3 == 0:
-                    await _solve_turnstile_if_present(page, config["url"])
-
-            if not logged_in:
-                await browser.close()
-                return {"success": False, "error": "Login not detected within 5 minutes. Try again."}
-
-            # Wait a moment for cookies to settle
-            await page.wait_for_timeout(2000)
-            cookies = await context.cookies()
-            await browser.close()
-
-        if not cookies:
-            return {"success": False, "error": "No cookies captured"}
-
-        # Normalize cookies for Playwright compatibility
-        normalized = []
-        for c in cookies:
-            ss = c.get("sameSite", "Lax")
-            if ss is None or ss not in ("Strict", "Lax", "None"):
-                ss = "Lax"
-            normalized.append({
-                "name": c["name"],
-                "value": c["value"],
-                "domain": c.get("domain", ""),
-                "path": c.get("path", "/"),
-                "httpOnly": bool(c.get("httpOnly", False)),
-                "secure": bool(c.get("secure", False)),
-                "sameSite": ss,
-                "expires": c.get("expires", -1),
-            })
-
-        session = SessionLocal()
-        try:
-            sm = SessionManager(session)
-            sm.save_cookies(domain, normalized, expires_at=datetime.now(timezone.utc) + timedelta(days=30))
-            return {"success": True, "cookies_count": len(normalized), "domain": domain}
-        finally:
-            session.close()
-
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 
 @app.delete("/api/sessions/{domain:path}")
@@ -1170,83 +1048,102 @@ async def update_and_publish_article(request: Request):
 
 # === Platform Config Endpoints ===
 
-@app.get("/platforms", response_class=HTMLResponse)
-async def platforms_page(request: Request):
-    """Platforms management page."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    platforms = pcs.get_all()
+# === Site Knowledge Endpoints ===
+
+@app.get("/generic-discovery", response_class=HTMLResponse)
+async def generic_discovery_page(request: Request):
+    """Generic discovery monitor page."""
     return templates.TemplateResponse(
         request=request,
-        name="platforms.html",
-        context={"platforms": platforms},
+        name="generic_discovery.html",
+        context={},
     )
 
 
-@app.get("/api/platforms")
-async def get_platforms():
-    """Return all platform configs as JSON."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    return {"success": True, "platforms": pcs.get_all()}
+@app.get("/sites", response_class=HTMLResponse)
+async def sites_page(request: Request):
+    """Discovered websites / Site Knowledge page."""
+    return templates.TemplateResponse(
+        request=request,
+        name="sites.html",
+        context={},
+    )
 
 
-@app.post("/api/platforms/toggle-search/{domain}")
-async def toggle_platform_search(domain: str, enabled: bool = Form(...)):
-    """Toggle search_enabled for a platform."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    ok = pcs.toggle_search(domain, enabled)
-    if not ok:
-        return {"success": False, "error": f"Platform '{domain}' not found"}
-    return {"success": True, "message": f"{domain} search={'enabled' if enabled else 'disabled'}"}
+@app.get("/api/sites")
+async def list_sites():
+    """List all known sites with session status and prospect counts."""
+    from src.infrastructure.site_knowledge.site_knowledge_service import SiteKnowledgeService
+    from src.infrastructure.posting.session_manager import SessionManager
+    from src.infrastructure.repositories.prospect_repo import ProspectRepository
+    session = SessionLocal()
+    try:
+        svc = SiteKnowledgeService(session)
+        sm = SessionManager(session)
+        prospect_repo = ProspectRepository(session)
+        sites = svc.get_summary()
+        for s in sites:
+            s["has_session"] = sm.is_session_valid(s["domain"])
+            s["prospect_count"] = prospect_repo.count_by_domain(s["domain"])
+        return {"success": True, "sites": sites, "total": len(sites)}
+    except Exception as e:
+        logger.error(f"List sites failed: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        session.close()
 
 
-@app.post("/api/platforms/toggle-post/{domain}")
-async def toggle_platform_post(domain: str, enabled: bool = Form(...)):
-    """Toggle post_enabled for a platform."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    ok = pcs.toggle_post(domain, enabled)
-    if not ok:
-        return {"success": False, "error": f"Platform '{domain}' not found"}
-    return {"success": True, "message": f"{domain} post={'enabled' if enabled else 'disabled'}"}
+@app.get("/api/sites/{domain:path}")
+async def get_site(domain: str):
+    """Get detailed knowledge for a specific domain."""
+    from src.infrastructure.site_knowledge.site_knowledge_service import SiteKnowledgeService
+    session = SessionLocal()
+    try:
+        svc = SiteKnowledgeService(session)
+        site = svc.get_by_domain(domain)
+        if not site:
+            return {"success": False, "error": "Site not found"}
+        return {"success": True, "site": site}
+    except Exception as e:
+        logger.error(f"Get site failed: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        session.close()
 
 
-@app.post("/api/platforms/toggle/{domain}")
-async def toggle_platform(domain: str, enabled: bool = Form(...)):
-    """Toggle enabled for a platform."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    ok = pcs.toggle_enabled(domain, enabled)
-    if not ok:
-        return {"success": False, "error": f"Platform '{domain}' not found"}
-    return {"success": True, "message": f"{domain}={'enabled' if enabled else 'disabled'}"}
+@app.post("/api/sites/classify/{domain:path}")
+async def classify_site(domain: str):
+    """Classify or re-classify a specific domain."""
+    from src.infrastructure.site_knowledge.site_knowledge_service import SiteKnowledgeService
+    session = SessionLocal()
+    try:
+        svc = SiteKnowledgeService(session)
+        site = svc.get_by_domain(domain)
+        title = site["title"] if site else ""
+        description = site["description"] if site else ""
+        result = svc.ensure_site(f"https://{domain}", title=title, description=description)
+        return {"success": True, "result": result}
+    except Exception as e:
+        logger.error(f"Classify site failed: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        session.close()
 
 
-@app.post("/api/platforms/add")
-async def add_platform(domain: str = Form(...), serp_site_filter: str = Form("")):
-    """Add a new platform."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    config = {}
-    if serp_site_filter:
-        config["serp_site_filter"] = serp_site_filter
-    ok = pcs.add_platform(domain, config)
-    if not ok:
-        return {"success": False, "error": f"Platform '{domain}' already exists"}
-    return {"success": True, "message": f"Platform '{domain}' added"}
-
-
-@app.post("/api/platforms/remove/{domain}")
-async def remove_platform(domain: str):
-    """Remove a platform."""
-    from src.infrastructure.platform_config import PlatformConfigService
-    pcs = PlatformConfigService()
-    ok = pcs.remove_platform(domain)
-    if not ok:
-        return {"success": False, "error": f"Platform '{domain}' not found"}
-    return {"success": True, "message": f"Platform '{domain}' removed"}
+@app.post("/api/sites/classify-unclassified")
+async def classify_unclassified(limit: int = 20):
+    """Classify all unclassified sites."""
+    from src.infrastructure.site_knowledge.site_knowledge_service import SiteKnowledgeService
+    session = SessionLocal()
+    try:
+        svc = SiteKnowledgeService(session)
+        count = svc.classify_unclassified(limit=limit)
+        return {"success": True, "classified": count}
+    except Exception as e:
+        logger.error(f"Classify unclassified failed: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":

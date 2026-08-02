@@ -133,19 +133,28 @@ class RAGRetrieval:
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding vector for text using Gemini Embedding API."""
         import requests
+        import time
 
-        resp = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{EMBEDDING_MODEL}:embedContent?key={GEMINI_API_KEY}",
-            headers={"Content-Type": "application/json"},
-            json={
-                "model": f"models/{EMBEDDING_MODEL}",
-                "content": {"parts": [{"text": text[:8000]}]},
-            },
-            timeout=30,
-        )
+        payload = {
+            "model": f"models/{EMBEDDING_MODEL}",
+            "content": {"parts": [{"text": text[:8000]}]},
+        }
+
+        for attempt in range(3):
+            resp = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{EMBEDDING_MODEL}:embedContent?key={GEMINI_API_KEY}",
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data["embedding"]["values"]
+            logger.warning(f"Embedding attempt {attempt + 1} failed: {resp.status_code} {resp.text[:200]}")
+            if attempt < 2:
+                time.sleep(1)
+
         resp.raise_for_status()
-        data = resp.json()
-        return data["embedding"]["values"]
 
     def ensure_table(self):
         """Create gaper_content table if not exists (768-dim for Gemini)."""

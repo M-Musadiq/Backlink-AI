@@ -10,20 +10,34 @@ class SessionVaultRepository(BaseRepository[PlatformSession]):
         super().__init__(session, PlatformSession)
 
     def get_by_domain(self, domain: str) -> Optional[PlatformSession]:
-        # Try exact match first
-        session = self._session.query(PlatformSession).filter(PlatformSession.domain == domain).first()
-        if session:
-            return session
-        # Fallback: try parent domains (e.g. dsvgroup.medium.com -> medium.com)
+        candidates = [domain]
+
+        # Add www. variants
+        if domain.startswith("www."):
+            candidates.append(domain.removeprefix("www."))
+        else:
+            candidates.append(f"www.{domain}")
+
+        # Add parent domain variants (e.g. dsvgroup.medium.com -> medium.com)
         parts = domain.split(".")
         for i in range(1, len(parts) - 1):
             parent = ".".join(parts[i:])
-            session = self._session.query(PlatformSession).filter(PlatformSession.domain == parent).first()
+            candidates.append(parent)
+            if not parent.startswith("www."):
+                candidates.append(f"www.{parent}")
+
+        for candidate in candidates:
+            session = self._session.query(PlatformSession).filter(PlatformSession.domain == candidate).first()
             if session:
                 return session
         return None
 
+    @staticmethod
+    def _normalize_domain(domain: str) -> str:
+        return domain.removeprefix("www.")
+
     def save_session(self, domain: str, encrypted_data: str, expires_at: Optional[datetime] = None) -> PlatformSession:
+        domain = self._normalize_domain(domain)
         existing = self.get_by_domain(domain)
         if existing:
             existing.session_data_encrypted = encrypted_data

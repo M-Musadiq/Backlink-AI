@@ -107,26 +107,32 @@ class WordPressArticleRepository(ArticleRepository):
     def get_my_articles(self) -> list[Article]:
         logger.info("Fetching WordPress articles...")
         articles = []
-        page = 1
 
-        while True:
-            resp = self._session.get(
-                f"{self.BASE_URL}/sites/{self._site_id}/posts",
-                params={"page": page, "per_page": 20, "status": "publish,draft,private"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        for status in ("publish", "draft", "private"):
+            page = 1
+            while True:
+                try:
+                    resp = self._session.get(
+                        f"{self.BASE_URL}/sites/{self._site_id}/posts",
+                        params={"page": page, "per_page": 20, "status": status},
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                except Exception as e:
+                    logger.warning(f"Failed to fetch WP {status} page {page}: {e}")
+                    break
 
-            if not data:
-                break
+                if not data:
+                    break
 
-            for item in data:
-                articles.append(self._parse_response(item))
+                for item in data:
+                    articles.append(self._parse_response(item))
 
-            if len(data) < 20:
-                break
-            page += 1
+                if len(data) < 20:
+                    break
+                page += 1
 
+        logger.info(f"Fetched {len(articles)} WordPress articles total")
         return articles
 
     def delete(self, article_id: int) -> bool:

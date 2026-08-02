@@ -18,7 +18,7 @@ import feedparser
 
 from src.domain.interfaces import Scraper
 from src.domain.scraper_entities import ScrapedContent
-from src.infrastructure.scrapers.base import extract_domain, DEFAULT_HEADERS
+from src.infrastructure.scrapers.base import best_title, extract_domain, DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ class APIScraper(Scraper):
         return ScrapedContent(
             url=url,
             domain="dev.to",
-            title=data.get("title", ""),
+            title=best_title(data.get("title", ""), url),
             body=data.get("body_markdown", "") or data.get("body_html", ""),
             author=data.get("user", {}).get("username", ""),
             published_at=data.get("published_at", ""),
@@ -135,7 +135,7 @@ class APIScraper(Scraper):
         return ScrapedContent(
             url=url,
             domain="reddit.com",
-            title=title,
+            title=best_title(title, url),
             body=body,
             author="",
             published_at="",
@@ -186,7 +186,7 @@ class APIScraper(Scraper):
         return ScrapedContent(
             url=url,
             domain="news.ycombinator.com",
-            title=data.get("title", ""),
+            title=best_title(data.get("title", ""), url),
             body="\n\n".join(body_parts) if body_parts else data.get("url", ""),
             author=data.get("by", ""),
             published_at=str(data.get("time", "")),
@@ -225,7 +225,7 @@ class APIScraper(Scraper):
         return ScrapedContent(
             url=entry.get("link", url),
             domain=extract_domain(url),
-            title=entry.get("title", ""),
+            title=best_title(entry.get("title", ""), entry.get("link", url)),
             body=body,
             author=entry.get("author", ""),
             published_at=entry.get("published", ""),

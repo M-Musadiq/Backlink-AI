@@ -10,15 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(bind=True, max_retries=3)
-def run_discovery(self, keywords: list, num_per_platform: int = 10):
+def run_discovery(self, keywords: list = None, num_per_platform: int = 10, generic: bool = False):
     """Run discovery pipeline and create prospects for new URLs."""
     session = SessionLocal()
     try:
         node = DiscoveryNode(session)
-        stats = node.discover(
-            keywords=keywords,
-            num_per_platform=num_per_platform,
-        )
+        if generic:
+            stats = node.discover_generic()
+        else:
+            stats = node.discover(
+                keywords=keywords or [],
+                num_per_platform=num_per_platform,
+            )
         logger.info(f"Discovery complete: {stats}")
 
         # Create prospects for newly discovered URLs

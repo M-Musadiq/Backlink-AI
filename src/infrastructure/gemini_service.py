@@ -36,6 +36,12 @@ class GeminiLLMService(LLMService):
                 "temperature": temperature,
                 "maxOutputTokens": 8192,
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
 
         logger.debug(f"Gemini request: model={self._model}, prompt_len={len(prompt)}")
@@ -46,6 +52,8 @@ class GeminiLLMService(LLMService):
             json=payload,
             timeout=60,
         )
+        if resp.status_code != 200:
+            logger.error(f"Gemini generate error {resp.status_code}: {resp.text[:2000]}")
         resp.raise_for_status()
         data = resp.json()
 
@@ -91,6 +99,12 @@ class GeminiLLMService(LLMService):
                 "temperature": temperature,
                 "maxOutputTokens": 4096,
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
 
         resp = requests.post(
@@ -99,6 +113,8 @@ class GeminiLLMService(LLMService):
             json=payload,
             timeout=60,
         )
+        if resp.status_code != 200:
+            logger.error(f"Gemini vision error {resp.status_code}: {resp.text[:2000]}")
         resp.raise_for_status()
         data = resp.json()
 
@@ -140,6 +156,12 @@ class GeminiLLMService(LLMService):
                 "temperature": temperature,
                 "maxOutputTokens": 4096,
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
 
         resp = requests.post(
@@ -148,6 +170,8 @@ class GeminiLLMService(LLMService):
             json=payload,
             timeout=60,
         )
+        if resp.status_code != 200:
+            logger.error(f"Gemini multi-image error {resp.status_code}: {resp.text[:2000]}")
         resp.raise_for_status()
         data = resp.json()
 

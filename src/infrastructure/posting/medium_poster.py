@@ -199,17 +199,23 @@ class MediumPoster(BasePlatformPoster):
                 for sel in [
                     'div[role="textbox"][contenteditable="true"]',
                     'div[contenteditable="true"]',
-                    'textarea',
+                    'textarea:not(.g-recaptcha-response)',
                 ]:
                     el = page.locator(sel)
-                    if await el.count() > 0:
+                    count = await el.count()
+                    logger.info(f"Medium: textbox selector '{sel}' — count={count}")
+                    if count > 0:
                         textbox = el.first
                         logger.info(f"Medium: found textbox ({sel})")
                         break
 
                 if not textbox:
                     await page.screenshot(path="debug_medium_no_textbox.png")
-                    return PostResult(success=False, error="Comment textbox not found.", platform=self.platform_name)
+                    page_html = await page.content()
+                    with open("debug_medium_page.html", "w", encoding="utf-8") as f:
+                        f.write(page_html)
+                    logger.info("Medium: saved debug_medium_page.html for analysis")
+                    return PostResult(success=False, error="Comment textbox not found. Check debug_medium_page.html", platform=self.platform_name)
 
                 # Click textbox to focus
                 await textbox.click()

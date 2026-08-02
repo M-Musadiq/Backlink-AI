@@ -14,7 +14,7 @@ import requests
 
 from src.domain.interfaces import Scraper, LLMService
 from src.domain.scraper_entities import ScrapedContent
-from src.infrastructure.scrapers.base import extract_domain, DEFAULT_HEADERS
+from src.infrastructure.scrapers.base import best_title, extract_domain, DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class LLMScraper(Scraper):
         return ScrapedContent(
             url=url,
             domain=domain,
-            title=parsed.get("title", ""),
+            title=best_title(parsed.get("title", ""), url),
             body=parsed.get("body", ""),
             author=parsed.get("author", ""),
             published_at=parsed.get("published_at", ""),

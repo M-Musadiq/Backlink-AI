@@ -87,7 +87,7 @@ class StaticScraper(Scraper):
         soup = BeautifulSoup(raw_html, "html.parser")
 
         # Extract metadata
-        meta = extract_metadata(soup)
+        meta = extract_metadata(soup, url=url)
 
         # Find main content
         main_el = extract_main_content(soup)

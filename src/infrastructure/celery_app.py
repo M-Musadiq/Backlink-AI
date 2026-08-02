@@ -38,14 +38,9 @@ app.conf.beat_schedule = {
         "task": "src.infrastructure.tasks.discovery_tasks.run_discovery",
         "schedule": crontab(hour=6, minute=0),
         "kwargs": {
-            "keywords": [
-                "deploy ai agents",
-                "build chatbot no code",
-                "ai agent platform",
-                "llm deployment",
-                "automate customer support",
-            ],
+            "keywords": [],
             "num_per_platform": 10,
+            "generic": True,
         },
     },
     "guidelines-refresh-weekly": {

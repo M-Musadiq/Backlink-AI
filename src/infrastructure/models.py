@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from src.infrastructure.database import Base
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class TrackedURL(Base):
@@ -86,3 +90,33 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     prospect = relationship("Prospect", back_populates="audit_logs")
+
+
+class SiteKnowledge(Base):
+    __tablename__ = "site_knowledge"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    domain = Column(String(255), unique=True, nullable=False, index=True)
+    site_type = Column(String(50), default="", index=True)
+    title = Column(String(500), default="")
+    description = Column(Text, default="")
+    login_url = Column(String(2048), default="")
+    registration_url = Column(String(2048), default="")
+    submission_url = Column(String(2048), default="")
+    login_required = Column(Boolean, default=False)
+    posting_capable = Column(Boolean, default=False)
+    listing_capable = Column(Boolean, default=False)
+    has_api = Column(Boolean, default=False)
+    robots_summary = Column(Text, default="")
+    posting_rules = Column(Text, default="")
+    required_fields = Column(Text, default="")
+    category_mapping = Column(Text, default="")
+    last_visited = Column(DateTime, nullable=True)
+    visit_count = Column(Integer, default=0)
+    success_rate = Column(Float, default=0.0)
+    success_count = Column(Integer, default=0)
+    failure_count = Column(Integer, default=0)
+    last_error = Column(Text, default="")
+    classification_raw = Column(Text, default="")
+    discovered_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

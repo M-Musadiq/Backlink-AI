@@ -10,6 +10,82 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+# Titles that are clearly not the article's own title (bot gates, logins, etc.).
+GENERIC_TITLE_MARKERS = (
+    "just a moment",
+    "verify you are human",
+    "attention required",
+    "access denied",
+    "sign in",
+    "log in",
+    "login",
+    "page not found",
+    "not found",
+    "captcha",
+    "rate limit",
+    "too many requests",
+    "prove your humanity",
+    "verification required",
+    "suspicious activity",
+    "you are blocked",
+)
+
+
+def title_from_url(url: str) -> str:
+    """Derive a readable title from a URL slug as a last-resort fallback.
+
+    Guarantees every page keeps its own exact title instead of borrowing a
+    sibling article's title. Handles trailing id/hash suffixes:
+    ``/learning-how-to-build-ai-agents-7349f3821c3d`` -> "Learning How To
+    Build Ai Agents"; ``/p/1gH83v2-x`` -> "P 1G H83V2 X".
+    """
+    if not url:
+        return ""
+    try:
+        path = urlparse(url).path
+    except Exception:
+        return ""
+    segs = [s for s in path.split("/") if s and "@" not in s]
+    if not segs:
+        return ""
+    best_slug = ""
+    for seg in reversed(segs):
+        # Drop trailing id/hash tokens iteratively until stable:
+        #   medium hex suffix  -> -7349f3821c3d
+        #   linkedin post code -> -NpPK (mixed case), trailing activity+digits
+        while True:
+            prev = seg
+            seg = re.sub(r"-([0-9a-fA-F]{6,})(\.\w+)?$", "", seg)
+            seg = re.sub(r"-([A-Za-z0-9]*[A-Z][A-Za-z0-9]*)$", "", seg)
+            if seg == prev:
+                break
+        parts = [w for w in re.split(r"[\s\-_/.]+", seg) if w]
+        if len(parts) >= 2:
+            best_slug = " ".join(parts)
+            break
+    if not best_slug and segs:
+        best_slug = re.sub(r"[\s\-_/.]+", " ", segs[-1])
+    slug = re.sub(r"\s+", " ", best_slug).strip()
+    words = [w for w in slug.split()]
+    if not words:
+        return ""
+    return " ".join(words).title()
+
+
+def best_title(title: str, url: str = "") -> str:
+    """Pick the most reliable exact title for a scraped page, generically.
+
+    Precedence:
+    1. Non-empty scraped title that isn't a bot/login gate — cleaned.
+    2. Title derived from the URL slug (never a sibling article's title).
+    """
+    t = (title or "").strip()
+    t = re.sub(r"\s+", " ", t)
+    low = t.lower()
+    if t and len(t) >= 8 and not any(m in low for m in GENERIC_TITLE_MARKERS):
+        return t
+    return title_from_url(url)
+
 # Realistic browser User-Agent
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -116,11 +192,11 @@ def extract_main_content(soup: BeautifulSoup) -> Optional[BeautifulSoup]:
     return best
 
 
-def extract_metadata(soup: BeautifulSoup) -> dict:
+def extract_metadata(soup: BeautifulSoup, url: str = "") -> dict:
     """Extract common metadata from HTML (title, author, date, description)."""
     meta = {}
 
-    # Title: og:title > <title> > h1
+    # Title: og:title > <title> > h1, then falls back to the URL slug.
     og_title = soup.find("meta", property="og:title")
     if og_title and og_title.get("content"):
         meta["title"] = og_title["content"].strip()
@@ -130,6 +206,7 @@ def extract_metadata(soup: BeautifulSoup) -> dict:
         h1 = soup.find("h1")
         if h1:
             meta["title"] = h1.get_text(strip=True)
+    meta["title"] = best_title(meta.get("title", ""), url)
 
     # Author
     author_meta = soup.find("meta", attrs={"name": "author"})

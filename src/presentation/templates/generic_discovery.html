@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">Generic Discovery</h2>
+            <p class="text-gray-400 mt-1 text-sm font-medium">Real-time monitor — discovers forums, communities, blogs without hardcoded platforms</p>
+        </div>
+        <div class="flex gap-2 items-center relative">
+            <div class="relative">
+                <button onclick="toggleGenericDropdown()" class="btn-premium-primary text-white font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Generic Discovery <span class="text-xs opacity-75">▼</span>
+                </button>
+                <!-- Keyword Dropdown -->
+                <div id="generic-keyword-dropdown" class="hidden absolute right-0 mt-3 w-80 glass-card rounded-2xl p-4 shadow-2xl z-50 animate-fade-in border border-white/10">
+                    <div class="space-y-3">
+                        <div class="text-xs text-gray-400 font-bold uppercase tracking-wider px-1">Select Keywords to Search:</div>
+                        <div id="generic-keyword-list" class="space-y-1 max-h-48 overflow-y-auto pr-1"></div>
+                        <div class="border-t border-white/5 my-2"></div>
+                        <div class="px-1">
+                            <input type="text" id="generic-custom-keyword" placeholder="Add custom keyword..." class="w-full text-sm premium-input rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500">
+                        </div>
+                        <button onclick="startGenericDiscovery()" class="w-full btn-premium-primary text-white text-sm font-bold py-2.5 rounded-xl">
+                            Start Searching →
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button onclick="clearGenericLog()" class="btn-premium-secondary text-sm font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2" id="btn-clear">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Clear
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="stats-row">
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-white" id="stat-progress">0%</div>
+            <div class="text-xs text-gray-400 mt-1">Progress</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-indigo-400" id="stat-phase">—</div>
+            <div class="text-xs text-gray-400 mt-1">Phase</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-amber-400" id="stat-domains">0</div>
+            <div class="text-xs text-gray-400 mt-1">Domains Found</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-emerald-400" id="stat-actionable">0</div>
+            <div class="text-xs text-gray-400 mt-1">Actionable Sites</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-rose-400" id="stat-errors">0</div>
+            <div class="text-xs text-gray-400 mt-1">Errors</div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="glass-card rounded-xl p-4">
+        <div class="flex justify-between text-xs text-gray-400 mb-2">
+            <span id="progress-label">Idle</span>
+            <span id="progress-pct">0%</span>
+        </div>
+        <div class="w-full bg-white/5 rounded-full h-2.5 overflow-hidden">
+            <div id="progress-bar" class="h-full rounded-full transition-all duration-500 ease-out" style="width: 0%; background: linear-gradient(90deg, #6366f1, #a855f7);"></div>
+        </div>
+    </div>
+
+    <!-- Keywords Display (during run) -->
+    <div id="keywords-display" class="glass-card rounded-2xl p-6 hidden">
+        <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Keywords Being Searched</h3>
+        <div id="keywords-tags" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Results Summary (shown on completion) -->
+    <div id="results-summary" class="glass-card rounded-2xl p-6 hidden">
+        <h3 class="text-lg font-bold text-white mb-4">Discovery Complete</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="results-grid"></div>
+    </div>
+
+    <!-- Log Console -->
+    <div class="glass-card rounded-2xl p-6">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Console Log</h3>
+            <span class="text-xs text-gray-500" id="log-count">0 entries</span>
+        </div>
+        <div id="log-container" class="bg-black/40 rounded-xl p-4 h-80 overflow-y-auto font-mono text-xs space-y-1">
+            <div class="text-gray-600">Ready. Click "Generic Discovery ▼" to start.</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let GAPER_KEYWORDS = [];
+let genericKeywordsLoaded = false;
+let pollInterval = null;
+let currentRunId = null;
+let knownEntries = 0;
+
+async function loadGenericKeywords() {
+    if (genericKeywordsLoaded) return;
+    try {
+        const res = await fetch('/api/gaper-keywords');
+        const data = await res.json();
+        if (data.success && data.keywords.length > 0) {
+            GAPER_KEYWORDS = [...new Set(data.keywords)];
+        }
+    } catch (e) {}
+    genericKeywordsLoaded = true;
+}
+
+function toggleGenericDropdown() {
+    const dd = document.getElementById('generic-keyword-dropdown');
+    if (!dd.classList.contains('hidden')) {
+        dd.classList.add('hidden');
+        return;
+    }
+    const list = document.getElementById('generic-keyword-list');
+    list.innerHTML = '<div class="px-3 py-2.5 text-sm text-gray-400">Loading keywords...</div>';
+    dd.classList.remove('hidden');
+    loadGenericKeywords().then(() => {
+        const shuffled = [...GAPER_KEYWORDS].sort(() => Math.random() - 0.5);
+        const shown = shuffled.slice(0, 10);
+        list.innerHTML = shown.map(kw => `
+            <label class="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors text-gray-300 hover:text-white">
+                <input type="checkbox" value="${kw}" class="generic-keyword-cb rounded border-white/10 bg-slate-900/60 text-indigo-500 focus:ring-indigo-500/30" checked>
+                <span class="text-sm font-medium">${kw}</span>
+            </label>
+        `).join('');
+    });
+}
+
+function updateStats(monitor) {
+    const pct = monitor.progress_pct || 0;
+    document.getElementById('stat-progress').textContent = pct + '%';
+    document.getElementById('stat-phase').textContent = monitor.phase || '—';
+    document.getElementById('stat-domains').textContent = monitor.unique_domains || 0;
+    document.getElementById('stat-actionable').textContent = monitor.actionable_sites || 0;
+    document.getElementById('stat-errors').textContent = monitor.errors || 0;
+
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+
+    const phaseLabels = {
+        '': 'Idle',
+        'extracting_keywords': 'Extracting keywords from gaper.io...',
+        'searching': `Searching ${monitor.current_query || 0}/${monitor.total_queries || '?'} queries...`,
+        'analyzing': `Analyzing ${monitor.domains_analyzed || 0}/${monitor.domains_total || '?'} domains...`,
+        'done': 'Complete!',
+    };
+    document.getElementById('progress-label').textContent = phaseLabels[monitor.phase] || monitor.phase || 'Idle';
+
+    if (monitor.keywords && monitor.keywords.length > 0) {
+        const container = document.getElementById('keywords-tags');
+        container.innerHTML = monitor.keywords.map(k =>
+            `<span class="text-xs px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/20">${k}</span>`
+        ).join('');
+        document.getElementById('keywords-display').classList.remove('hidden');
+    }
+}
+
+function appendLog(logs) {
+    const container = document.getElementById('log-container');
+    if (!logs || logs.length === 0) return;
+
+    const newEntries = logs.slice(knownEntries);
+    if (newEntries.length === 0) return;
+
+    for (const entry of newEntries) {
+        const div = document.createElement('div');
+        div.className = 'text-gray-300';
+        div.textContent = entry;
+        container.appendChild(div);
+    }
+    knownEntries = logs.length;
+    container.scrollTop = container.scrollHeight;
+    document.getElementById('log-count').textContent = knownEntries + ' entries';
+}
+
+function showResults(monitor) {
+    const stats = monitor.stats;
+    if (!stats) return;
+
+    const summary = document.getElementById('results-summary');
+    summary.classList.remove('hidden');
+
+    const grid = document.getElementById('results-grid');
+    grid.innerHTML = '';
+    const items = [
+        { label: 'Keywords Used', value: stats.keywords },
+        { label: 'Queries Searched', value: stats.queries },
+        { label: 'Total Raw Results', value: stats.total_raw_results },
+        { label: 'After Dedup', value: stats.after_dedup },
+        { label: 'Unique Domains', value: stats.unique_domains },
+        { label: 'Domains Analyzed', value: stats.domains_analyzed },
+        { label: 'Newly Classified', value: stats.newly_classified },
+            { label: 'Actionable Sites', value: stats.actionable_sites },
+            { label: 'Individual URLs', value: stats.individual_urls_saved },
+            { label: 'Errors', value: stats.errors },
+    ];
+
+    for (const item of items) {
+        const card = document.createElement('div');
+        card.className = 'bg-white/5 rounded-lg p-3 text-center';
+        card.innerHTML = `
+            <div class="text-xl font-bold text-white">${item.value}</div>
+            <div class="text-xs text-gray-400 mt-1">${item.label}</div>
+        `;
+        grid.appendChild(card);
+    }
+}
+
+async function pollStatus() {
+    if (!currentRunId) return;
+
+    try {
+        const resp = await fetch('/api/discovery/generic/status/' + currentRunId);
+        const data = await resp.json();
+        if (!data.success) {
+            stopPolling();
+            showToast('Discovery run not found', 'error');
+            return;
+        }
+
+        const monitor = data.monitor;
+        updateStats(monitor);
+        appendLog(monitor.log);
+
+        if (monitor.status === 'completed') {
+            stopPolling();
+            enableGenericBtn();
+            showResults(monitor);
+            showToast('Discovery complete!', 'success');
+            document.getElementById('progress-label').textContent = 'Complete!';
+        } else if (monitor.status === 'failed') {
+            stopPolling();
+            enableGenericBtn();
+            showToast('Discovery failed: ' + (monitor.error || 'Unknown error'), 'error');
+            document.getElementById('progress-label').textContent = 'Failed';
+        }
+    } catch (e) {
+        stopPolling();
+        showToast('Polling error: ' + e.message, 'error');
+    }
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+function enableGenericBtn() {
+    const btn = document.querySelector('#generic-keyword-dropdown').previousElementSibling;
+    btn.disabled = false;
+    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> Generic Discovery <span class="text-xs opacity-75">▼</span>`;
+}
+
+async function startGenericDiscovery() {
+    const cbs = document.querySelectorAll('.generic-keyword-cb:checked');
+    const custom = document.getElementById('generic-custom-keyword').value.trim();
+
+    let keywords = Array.from(cbs).map(cb => cb.value);
+    if (custom) keywords.push(custom);
+
+    if (keywords.length === 0) {
+        showToast('Select at least one keyword', 'error');
+        return;
+    }
+
+    document.getElementById('generic-keyword-dropdown').classList.add('hidden');
+    const btn = document.querySelector('#generic-keyword-dropdown').previousElementSibling;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="inline-block animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Searching...';
+
+    // Clear previous run
+    document.getElementById('results-summary').classList.add('hidden');
+    document.getElementById('keywords-display').classList.add('hidden');
+    document.getElementById('log-container').innerHTML = '<div class="text-gray-600">Starting discovery...</div>';
+    knownEntries = 0;
+    document.getElementById('log-count').textContent = '0 entries';
+
+    try {
+        const resp = await fetch('/api/discovery/generic/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ keywords }),
+        });
+        const data = await resp.json();
+        if (!data.success) {
+            showToast(data.error || 'Failed to start discovery', 'error');
+            enableGenericBtn();
+            return;
+        }
+
+        currentRunId = data.run_id;
+        showToast('Discovery started!', 'success');
+        pollInterval = setInterval(pollStatus, 1500);
+    } catch (e) {
+        showToast('Failed to start: ' + e.message, 'error');
+        enableGenericBtn();
+    }
+}
+
+function clearGenericLog() {
+    if (currentRunId && document.querySelector('#generic-keyword-dropdown').previousElementSibling.disabled) {
+        showToast('Cannot clear while discovery is running', 'error');
+        return;
+    }
+    document.getElementById('log-container').innerHTML = '<div class="text-gray-600">Cleared.</div>';
+    knownEntries = 0;
+    document.getElementById('log-count').textContent = '0 entries';
+    document.getElementById('results-summary').classList.add('hidden');
+    document.getElementById('keywords-display').classList.add('hidden');
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('progress-pct').textContent = '0%';
+    document.getElementById('progress-label').textContent = 'Idle';
+    document.getElementById('stat-progress').textContent = '0%';
+    document.getElementById('stat-phase').textContent = '—';
+    document.getElementById('stat-domains').textContent = '0';
+    document.getElementById('stat-actionable').textContent = '0';
+    document.getElementById('stat-errors').textContent = '0';
+    currentRunId = null;
+}
+
+document.addEventListener('click', function(e) {
+    const dd = document.getElementById('generic-keyword-dropdown');
+    const btn = dd ? dd.previousElementSibling : null;
+    if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+        dd.classList.add('hidden');
+    }
+});
+</script>
+{% endblock %}

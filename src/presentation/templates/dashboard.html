@@ -8,27 +8,11 @@
             <h2 class="text-3xl font-extrabold text-white tracking-tight">Campaign Dashboard</h2>
             <p class="text-gray-400 mt-1 text-sm font-medium">Overview of your backlink generation activity</p>
         </div>
-        <div class="flex gap-2 items-center relative">
-            <div class="relative">
-                <button onclick="toggleDropdown()" class="btn-premium-primary text-white font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2 text-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    Run Discovery <span class="text-xs opacity-75">▼</span>
-                </button>
-                <!-- Keyword Dropdown -->
-                <div id="keyword-dropdown" class="hidden absolute right-0 mt-3 w-80 glass-card rounded-2xl p-4 shadow-2xl z-50 animate-fade-in border border-white/10">
-                    <div class="space-y-3">
-                        <div class="text-xs text-gray-400 font-bold uppercase tracking-wider px-1">Select Keywords to Search:</div>
-                        <div id="keyword-list" class="space-y-1 max-h-48 overflow-y-auto pr-1"></div>
-                        <div class="border-t border-white/5 my-2"></div>
-                        <div class="px-1">
-                            <input type="text" id="custom-keyword" placeholder="Add custom keyword..." class="w-full text-sm premium-input rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500">
-                        </div>
-                        <button onclick="startDiscovery()" class="w-full btn-premium-primary text-white text-sm font-bold py-2.5 rounded-xl">
-                            Start Searching →
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <div class="flex gap-2 items-center">
+            <a href="/generic-discovery" class="btn-premium-primary text-white font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                Generic Discovery
+            </a>
         </div>
     </div>
 
@@ -83,17 +67,7 @@
             Outreach Pipeline
         </h3>
         
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <!-- Discovered -->
-            <div class="text-center p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10 hover:border-indigo-500/20 transition-colors">
-                <div class="text-2xl font-extrabold text-indigo-400">{{ stats.discovered }}</div>
-                <div class="text-xs text-gray-400 font-semibold mt-1">Discovered</div>
-            </div>
-            <!-- Scraped -->
-            <div class="text-center p-4 bg-cyan-500/5 rounded-xl border border-cyan-500/10 hover:border-cyan-500/20 transition-colors">
-                <div class="text-2xl font-extrabold text-cyan-400">{{ stats.scraped_urls }}</div>
-                <div class="text-xs text-gray-400 font-semibold mt-1">Scraped</div>
-            </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <!-- Relevant -->
             <div class="text-center p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/10 hover:border-emerald-500/20 transition-colors">
                 <div class="text-2xl font-extrabold text-emerald-400">{{ stats.relevant }}</div>
@@ -138,10 +112,6 @@
                 </div>
             </div>
             
-            <div class="mt-6 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-xs text-gray-400 space-y-1">
-                <span class="font-bold text-indigo-300 block mb-1">System status</span>
-                <p>Keywords are parsed weekly from Gaper.io domains to capture high relevance targets automatically.</p>
-            </div>
         </div>
 
         <!-- Recent Activity -->
@@ -183,95 +153,5 @@
 </div>
 
 <script>
-let GAPER_KEYWORDS = [];
-let keywordsLoaded = false;
-
-async function loadGaperKeywords() {
-    if (keywordsLoaded) return;
-    try {
-        const res = await fetch('/api/gaper-keywords');
-        const data = await res.json();
-        if (data.success && data.keywords.length > 0) {
-            GAPER_KEYWORDS = [...new Set(data.keywords)];
-        }
-    } catch (e) {}
-    keywordsLoaded = true;
-}
-
-function toggleDropdown() {
-    const dd = document.getElementById('keyword-dropdown');
-    if (!dd.classList.contains('hidden')) {
-        dd.classList.add('hidden');
-        return;
-    }
-    // Show loading state
-    const list = document.getElementById('keyword-list');
-    list.innerHTML = '<div class="px-3 py-2.5 text-sm text-gray-400">Loading keywords...</div>';
-    dd.classList.remove('hidden');
-    // Fetch then populate
-    loadGaperKeywords().then(() => {
-        const shuffled = [...GAPER_KEYWORDS].sort(() => Math.random() - 0.5);
-        const shown = shuffled.slice(0, 5);
-        list.innerHTML = shown.map(kw => `
-            <label class="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg cursor-pointer transition-colors text-gray-300 hover:text-white">
-                <input type="checkbox" value="${kw}" class="keyword-cb rounded border-white/10 bg-slate-900/60 text-indigo-500 focus:ring-indigo-500/30" checked>
-                <span class="text-sm font-medium">${kw}</span>
-            </label>
-        `).join('');
-    });
-}
-
-// Don't load on page load — only when dropdown is opened
-
-function startDiscovery() {
-    const cbs = document.querySelectorAll('.keyword-cb:checked');
-    const custom = document.getElementById('custom-keyword').value.trim();
-    
-    let keywords = Array.from(cbs).map(cb => cb.value);
-    if (custom) keywords.push(custom);
-    
-    if (keywords.length === 0) {
-        showToast('Select at least one keyword', 'error');
-        return;
-    }
-    
-    document.getElementById('keyword-dropdown').classList.add('hidden');
-    runDiscovery(keywords.join(', '));
-}
-
-async function runDiscovery(keywords) {
-    const btn = document.querySelector('#keyword-dropdown').previousElementSibling;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="inline-block animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Searching...';
-    
-    try {
-        const response = await fetch('/api/discovery', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'keywords=' + encodeURIComponent(keywords)
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast(`Found ${data.stats.new_count} new URLs!`);
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            showToast(data.error || 'Discovery failed', 'error');
-        }
-    } catch (error) {
-        showToast('Network error', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> Run Discovery <span class="text-xs opacity-75">▼</span>`;
-    }
-}
-
-document.addEventListener('click', function(e) {
-    const dd = document.getElementById('keyword-dropdown');
-    const btn = dd ? dd.previousElementSibling : null;
-    if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
-        dd.classList.add('hidden');
-    }
-});
 </script>
 {% endblock %}

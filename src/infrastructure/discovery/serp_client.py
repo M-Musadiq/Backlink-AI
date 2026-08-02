@@ -303,6 +303,9 @@ class SERPClient:
             site_filter=site_filter,
         )
 
+    def search_generic(self, query: str, num_results: int = 20) -> List[Dict]:
+        return self.search(query=query, num_results=num_results, site_filter="")
+
     def search_platforms(
         self,
         query: str,

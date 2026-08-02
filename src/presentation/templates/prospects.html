@@ -15,8 +15,8 @@
         <a href="/prospects" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if not current_status %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
             All
         </a>
-        <a href="/prospects?status=discovered" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'discovered' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
-            Discovered
+        <a href="/prospects?status=waiting_for_login" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'waiting_for_login' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
+            Waiting Login
         </a>
         <a href="/prospects?status=relevant" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 border {% if current_status == 'relevant' %}btn-premium-primary text-white border-transparent{% else %}bg-white/5 border-white/5 text-gray-400 hover:text-white hover:bg-white/10{% endif %}">
             Relevant
@@ -67,6 +67,8 @@
                     <td class="px-4 py-3">
                             {% if p.status == 'discovered' %}
                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">Discovered</span>
+                            {% elif p.status == 'waiting_for_login' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Waiting Login</span>
                             {% elif p.status == 'relevant' %}
                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Relevant</span>
                             {% elif p.status == 'drafted' %}
@@ -101,7 +103,17 @@
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex gap-2 justify-end items-center flex-wrap">
-                                {% if p.status == 'discovered' or p.status == 'scraped' %}
+                                {% if not p._has_session and (p.status == 'waiting_for_login' or p.status == 'discovered') %}
+                                <button onclick="loginForDomain('{{ p.domain }}')" class="btn-premium-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 hover:shadow-lg" title="Login required">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+                                    Login
+                                </button>
+                                {% elif p._has_session and p.status == 'waiting_for_login' %}
+                                <button onclick="evaluateProspect({{ p.id }})" class="btn-premium-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 hover:shadow-lg" title="Evaluate relevance">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Evaluate
+                                </button>
+                                {% elif p.status == 'discovered' %}
                                 <button onclick="evaluateProspect({{ p.id }})" class="btn-premium-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 hover:shadow-lg" title="Evaluate relevance">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                     Evaluate
@@ -151,7 +163,7 @@
                                     Archive
                                 </button>
                                 {% endif %}
-                                
+
                                 <a href="{{ p.url }}" target="_blank" class="btn-premium-secondary text-xs font-bold py-1.5 px-2.5 rounded-lg flex items-center justify-center" title="Open thread in new tab">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                                 </a>
@@ -212,6 +224,10 @@
 </div>
 
 <script>
+function loginForDomain(domain) {
+    window.location.href = '/sessions';
+}
+
 async function evaluateProspect(id) {
     showToast('Evaluating...', 'info');
     try {

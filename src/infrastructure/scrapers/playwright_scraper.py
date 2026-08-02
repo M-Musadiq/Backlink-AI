@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlaywrightScraper(Scraper):
-    """Scrapes JS-rendered pages using a headless Chromium browser."""
+    """Scrapes JS-rendered pages using a stealth headless Chromium browser."""
 
     def __init__(self, timeout: int = 20, headless: bool = True):
         self._timeout = timeout * 1000  # Playwright uses ms
@@ -36,13 +36,21 @@ class PlaywrightScraper(Scraper):
         return True
 
     def _ensure_browser(self):
-        """Lazily start the browser only when first needed."""
+        """Lazily start the stealth browser only when first needed."""
         if self._browser is None:
             from playwright.sync_api import sync_playwright
 
             self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=self._headless)
-            logger.info("[Playwright Scraper] Browser launched")
+            self._browser = self._playwright.chromium.launch(
+                headless=self._headless,
+                channel="chrome",
+                args=[
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
+            logger.info("[Playwright Scraper] Stealth browser launched")
 
     def scrape(self, url: str) -> ScrapedContent:
         domain = extract_domain(url)
@@ -50,7 +58,20 @@ class PlaywrightScraper(Scraper):
 
         self._ensure_browser()
 
-        page = self._browser.new_page()
+        # Create a fresh stealth context per scrape to avoid cookie bleed
+        context = self._browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 800},
+        )
+        page = context.new_page()
+        # Mask navigator.webdriver to bypass bot-detection (Cloudflare, Quora, etc.)
+        page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
         try:
             # Navigate and wait for content to load
             page.goto(url, wait_until="networkidle", timeout=self._timeout)
@@ -66,6 +87,7 @@ class PlaywrightScraper(Scraper):
             raise
         finally:
             page.close()
+            context.close()
 
         # Parse with BeautifulSoup (same logic as static scraper)
         from bs4 import BeautifulSoup
@@ -73,7 +95,7 @@ class PlaywrightScraper(Scraper):
         soup = BeautifulSoup(raw_html, "html.parser")
 
         # Extract metadata
-        meta = extract_metadata(soup)
+        meta = extract_metadata(soup, url=url)
 
         # Find main content
         main_el = extract_main_content(soup)

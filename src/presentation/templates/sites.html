@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">Discovery Targets</h2>
+            <p class="text-gray-400 mt-1 text-sm font-medium">All actionable sites — forums, communities, Q&A, and listing platforms</p>
+        </div>
+        <button onclick="loadSites()" class="btn-premium-secondary text-sm font-semibold py-2.5 px-5 rounded-xl flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            Refresh
+        </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="stats-row">
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-white" id="stat-total">0</div>
+            <div class="text-xs text-gray-400 mt-1">Total Targets</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-emerald-400" id="stat-reply">0</div>
+            <div class="text-xs text-gray-400 mt-1">Can Reply</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-blue-400" id="stat-listing">0</div>
+            <div class="text-xs text-gray-400 mt-1">Can List</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-indigo-400" id="stat-session">0</div>
+            <div class="text-xs text-gray-400 mt-1">Has Session</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-amber-400" id="stat-prospects">0</div>
+            <div class="text-xs text-gray-400 mt-1">Total Prospects</div>
+        </div>
+    </div>
+
+    <!-- Type Filter -->
+    <div class="flex flex-wrap gap-2" id="type-filters">
+        <button onclick="filterSites('all')" class="filter-btn text-xs px-3 py-1.5 rounded-full border border-white/10 text-gray-400 hover:border-indigo-500/30 hover:text-indigo-300 transition-all" data-type="all">All</button>
+    </div>
+
+    <!-- Sites Table -->
+    <div class="glass-card rounded-2xl p-6">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-gray-500 text-xs uppercase tracking-wider">
+                        <th class="text-left pb-3 pr-4">Domain</th>
+                        <th class="text-left pb-3 pr-4">Type</th>
+                        <th class="text-center pb-3 pr-4">Action</th>
+                        <th class="text-center pb-3 pr-4">Session</th>
+                        <th class="text-center pb-3 pr-4">Prospects</th>
+                        <th class="text-right pb-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="sites-body" class="divide-y divide-white/5">
+                    <tr>
+                        <td colspan="6" class="text-center py-8 text-gray-500">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allSites = [];
+    let currentFilter = 'all';
+
+    window.addEventListener('DOMContentLoaded', loadSites);
+
+    async function loadSites() {
+        try {
+            const resp = await fetch('/api/sites');
+            const data = await resp.json();
+            if (!data.success) {
+                showToast('Failed: ' + data.error, 'error');
+                return;
+            }
+            allSites = data.sites || [];
+            renderSites(allSites);
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        }
+    }
+
+    function renderSites(sites) {
+        const total = sites.length;
+        const reply = sites.filter(s => s.posting_capable).length;
+        const listing = sites.filter(s => s.listing_capable).length;
+        const withSession = sites.filter(s => s.has_session).length;
+        const prospects = sites.reduce((sum, s) => sum + (s.prospect_count || 0), 0);
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-reply').textContent = reply;
+        document.getElementById('stat-listing').textContent = listing;
+        document.getElementById('stat-session').textContent = withSession;
+        document.getElementById('stat-prospects').textContent = prospects;
+
+        const types = [...new Set(sites.map(s => s.site_type || 'unclassified'))].sort();
+        const filterContainer = document.getElementById('type-filters');
+        filterContainer.innerHTML = `<button onclick="filterSites('all')" class="filter-btn text-xs px-3 py-1.5 rounded-full border transition-all ${currentFilter === 'all' ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'border-white/10 text-gray-400 hover:border-indigo-500/30 hover:text-indigo-300'}" data-type="all">All</button>`;
+        types.forEach(t => {
+            filterContainer.innerHTML += `<button onclick="filterSites('${t}')" class="filter-btn text-xs px-3 py-1.5 rounded-full border transition-all ${currentFilter === t ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'border-white/10 text-gray-400 hover:border-indigo-500/30 hover:text-indigo-300'}" data-type="${t}">${t}</button>`;
+        });
+
+        const filtered = currentFilter === 'all' ? sites : sites.filter(s => (s.site_type || 'unclassified') === currentFilter);
+        const tbody = document.getElementById('sites-body');
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">No matching sites.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(s => `
+            <tr class="hover:bg-white/3 transition-colors">
+                <td class="py-3 pr-4">
+                    <div class="text-white font-medium text-sm">${s.domain}</div>
+                </td>
+                <td class="py-3 pr-4">
+                    <span class="text-xs px-2 py-0.5 rounded-full ${typeBadge(s.site_type)}">${s.site_type}</span>
+                </td>
+                <td class="py-3 pr-4 text-center">
+                    ${s.posting_capable ? '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/20">Reply</span>' : ''}
+                    ${s.listing_capable ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/20">Listing</span>' : ''}
+                </td>
+                <td class="py-3 pr-4 text-center">
+                    ${s.has_session
+                        ? '<span class="inline-flex items-center gap-1 text-xs text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active</span>'
+                        : '<span class="text-xs text-gray-500">—</span>'}
+                </td>
+                <td class="py-3 pr-4 text-center text-gray-300 text-sm">${s.prospect_count || 0}</td>
+                <td class="py-3 text-right">
+                    <div class="flex gap-2 justify-end">
+                        <a href="/prospects" class="text-xs text-indigo-400 hover:text-indigo-300 underline">Prospects</a>
+                        <a href="/sessions" class="text-xs text-gray-400 hover:text-white underline">Session</a>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function typeBadge(type) {
+        const colors = {
+            'Forum': 'bg-blue-500/15 text-blue-300 border border-blue-500/20',
+            'Listing Site': 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20',
+            'Directory': 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20',
+            'Community': 'bg-purple-500/15 text-purple-300 border border-purple-500/20',
+            'Blog': 'bg-amber-500/15 text-amber-300 border border-amber-500/20',
+            'Q&A': 'bg-rose-500/15 text-rose-300 border border-rose-500/20',
+        };
+        return colors[type] || 'bg-gray-500/15 text-gray-300 border border-gray-500/20';
+    }
+
+    function filterSites(type) {
+        currentFilter = type;
+        renderSites(allSites);
+    }
+</script>
+{% endblock %}

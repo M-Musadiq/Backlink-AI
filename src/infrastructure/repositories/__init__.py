@@ -4,6 +4,7 @@ from src.infrastructure.repositories.guidelines_repo import GuidelinesRepository
 from src.infrastructure.repositories.prospect_repo import ProspectRepository
 from src.infrastructure.repositories.session_vault_repo import SessionVaultRepository
 from src.infrastructure.repositories.audit_log_repo import AuditLogRepository
+from src.infrastructure.repositories.site_knowledge_repo import SiteKnowledgeRepository
 
 __all__ = [
     "TrackedURLRepository",
@@ -12,4 +13,5 @@ __all__ = [
     "ProspectRepository",
     "SessionVaultRepository",
     "AuditLogRepository",
+    "SiteKnowledgeRepository",
 ]

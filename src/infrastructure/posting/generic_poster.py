@@ -979,18 +979,17 @@ If the step cannot be salvaged, return {{"action": "abort"}}."""
             return None, None
         storage_data = {"cookies": [], "origins": []}
         for c in cookies:
-            if c.get("name", "").startswith("__Host-"):
-                continue
             ss = c.get("sameSite", "Lax")
             if ss is None or ss not in ("Strict", "Lax", "None"):
                 ss = "Lax"
+            is_host_prefixed = c.get("name", "").startswith(("__Host-", "__Secure-"))
             cookie = {
                 "name": c["name"],
                 "value": c["value"],
-                "domain": c.get("domain", ""),
-                "path": c.get("path", "/"),
+                "domain": c.get("domain", "").lstrip(".") if is_host_prefixed else c.get("domain", ""),
+                "path": "/" if is_host_prefixed else c.get("path", "/"),
                 "httpOnly": bool(c.get("httpOnly", False)),
-                "secure": bool(c.get("secure", False)),
+                "secure": True if is_host_prefixed else bool(c.get("secure", False)),
                 "sameSite": ss,
             }
             if c.get("expires") and c["expires"] > 0:

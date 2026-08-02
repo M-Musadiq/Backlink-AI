@@ -22,16 +22,33 @@ class SessionManager:
 
     def save_cookies(self, domain: str, cookies: List[Dict], expires_at: Optional[datetime] = None) -> None:
         """Save browser cookies for a platform.
-        
+
+        Merges with any existing session for the domain: cookies are keyed by
+        (name, domain, path), so importing an export for ``login.microsoftonline.com``
+        into the same card as ``learn.microsoft.com`` keeps both jars.
+
         Args:
             domain: Platform domain (e.g., 'reddit.com')
             cookies: List of cookie dicts [{name, value, domain, path, ...}]
             expires_at: Optional expiration time
         """
-        payload = json.dumps({"cookies": cookies, "saved_at": datetime.now(timezone.utc).isoformat()})
+        existing = self.get_cookies(domain)
+        if existing:
+            merged = self._merge_cookies(existing, cookies)
+        else:
+            merged = cookies
+        payload = json.dumps({"cookies": merged, "saved_at": datetime.now(timezone.utc).isoformat()})
         encrypted = self._fernet.encrypt(payload.encode()).decode()
         self._vault.save_session(domain, encrypted, expires_at)
-        logger.info(f"Saved session for {domain} ({len(cookies)} cookies)")
+        logger.info(f"Saved session for {domain} ({len(merged)} cookies total, +{len(cookies)} this import)")
+
+    @staticmethod
+    def _merge_cookies(current: List[Dict], incoming: List[Dict]) -> List[Dict]:
+        """Merge incoming cookies into the current jar, replacing by (name, domain, path)."""
+        index = {(c.get("name", ""), c.get("domain", ""), c.get("path", "/")): c for c in current}
+        for c in incoming:
+            index[(c.get("name", ""), c.get("domain", ""), c.get("path", "/"))] = c
+        return list(index.values())
 
     def get_cookies(self, domain: str) -> List[Dict]:
         """Load browser cookies for a platform.
@@ -72,6 +89,78 @@ class SessionManager:
         if not session:
             return False
         return self._is_not_expired(session)
+
+    def check_validity(self, domains: List[str]) -> Dict[str, bool]:
+        """Batch validity check for many domains — 1 DB query + 1 decrypt per session.
+
+        Pages like /prospects used to call ``is_session_valid`` per unique domain,
+        each triggering up to 4 DB round trips plus decrypting every stored
+        session (very slow against a remote Postgres). This does the same job
+        entirely in memory.
+        """
+        stored = [s for s in self._vault.get_all() if self._is_not_expired(s)]
+        stored_domains = {s.domain for s in stored}
+        platform_index = self._build_platform_index_from(stored)
+        decrypted = []
+        for s in stored:
+            try:
+                payload = json.loads(self._fernet.decrypt(s.session_data_encrypted.encode()).decode())
+            except Exception:
+                payload = {"cookies": []}
+            decrypted.append((s.domain, payload.get("cookies", [])))
+
+        cache = {}
+        result = {}
+        for domain in domains:
+            d = domain.strip().lower().lstrip("www.")
+            if d in cache:
+                result[domain] = cache[d]
+                continue
+            valid = False
+            candidates = self._candidate_domains(d)
+            if candidates & stored_domains:
+                valid = True
+            if not valid:
+                platform_root = self._resolve_platform_root(d, platform_index)
+                for stored_domain, cookies in decrypted:
+                    if platform_root and _registrable_domain(stored_domain) == platform_root:
+                        valid = True
+                        break
+                    if any(self._covers(c.get("domain", ""), d) for c in cookies):
+                        valid = True
+                        break
+            cache[d] = valid
+            result[domain] = valid
+        return result
+
+    @staticmethod
+    def _candidate_domains(domain: str) -> set:
+        """Domains that a stored session could be under, mirroring SessionVaultRepository.get_by_domain."""
+        candidates = {domain}
+        if domain.startswith("www."):
+            candidates.add(domain.removeprefix("www."))
+        else:
+            candidates.add(f"www.{domain}")
+        parts = domain.split(".")
+        for i in range(1, len(parts) - 1):
+            parent = ".".join(parts[i:])
+            candidates.add(parent)
+            if not parent.startswith("www."):
+                candidates.add(f"www.{parent}")
+        return candidates
+
+    @staticmethod
+    def _build_platform_index_from(stored_sessions) -> dict:
+        """Platform label index from an already-loaded session list."""
+        index = {}
+        for stored in stored_sessions:
+            root = _registrable_domain(stored.domain)
+            if not root:
+                continue
+            label = root.split(".")[0]
+            if len(label) > 2:
+                index.setdefault(label, root)
+        return index
 
     def invalidate_session(self, domain: str) -> None:
         """Mark a session as expired (needs re-login)."""
@@ -173,12 +262,14 @@ class SessionManager:
         return expires >= datetime.now(timezone.utc)
 
     def get_all_sessions(self) -> Dict[str, dict]:
-        """Get status of all platform sessions."""
+        """Get status of all platform sessions (batched validity check)."""
         all_sessions = self._vault.get_all()
+        domains = [s.domain for s in all_sessions]
+        valid_map = self.check_validity(domains)
         result = {}
         for s in all_sessions:
             result[s.domain] = {
-                "valid": self.is_session_valid(s.domain),
+                "valid": valid_map.get(s.domain, False),
                 "last_used": s.last_used.isoformat() if s.last_used else None,
                 "expires_at": s.expires_at.isoformat() if s.expires_at else None,
             }

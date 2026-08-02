@@ -109,12 +109,11 @@ async def prospects_page(request: Request, status: str = ""):
         from src.infrastructure.discovery.dedup import EXCLUDED_DOMAINS, extract_domain
         prospects = [p for p in prospects if not p.tracked_url or extract_domain(p.tracked_url.url) not in EXCLUDED_DOMAINS]
 
-        # Check session per domain
-        seen_domains = {}
+        # Check session per domain (batched — 1 DB query total)
+        unique_domains = list({p.domain for p in prospects})
+        valid_map = session_mgr.check_validity(unique_domains)
         for p in prospects:
-            if p.domain not in seen_domains:
-                seen_domains[p.domain] = session_mgr.is_session_valid(p.domain)
-            p._has_session = seen_domains[p.domain]
+            p._has_session = valid_map.get(p.domain, False)
 
         return templates.TemplateResponse(
             request=request,
@@ -179,17 +178,24 @@ async def sessions_page(request: Request):
 
         # Get all actionable sites from site_knowledge
         all_sites = svc.get_summary()
-        actionable_domains = set()
+        actionable_domains = []
         for site in all_sites:
             if site.get("posting_capable") or site.get("listing_capable"):
                 domain = site["domain"]
-                actionable_domains.add(domain)
+                actionable_domains.append(domain)
                 if domain not in sessions:
                     sessions[domain] = {
-                        "valid": sm.is_session_valid(domain),
+                        "valid": None,
                         "last_used": None,
                         "expires_at": None,
                     }
+
+        # Batch-check validity for actionable sites not backed by a saved session
+        missing = [d for d in actionable_domains if sessions.get(d, {}).get("valid") is None]
+        if missing:
+            valid_map = sm.check_validity(missing)
+            for d in missing:
+                sessions[d]["valid"] = valid_map.get(d, False)
 
         return templates.TemplateResponse(
             request=request,
@@ -600,8 +606,13 @@ async def import_cookies(domain: str, request: Request):
             else:
                 cookie["sameSite"] = "Lax"
 
-            # __Host- prefix cookies are auto-managed by browser, skip them
-            if cookie["name"].startswith("__Host-"):
+            # __Host- / __Secure- cookies are host-only by spec: keep them but
+            # normalize (secure, path=/ , no leading dot) so Playwright accepts them.
+            if cookie["name"].startswith(("__Host-", "__Secure-")):
+                cookie["secure"] = True
+                cookie["path"] = "/"
+                cookie["domain"] = cookie["domain"].lstrip(".")
+                normalized.append(cookie)
                 continue
 
             normalized.append(cookie)
@@ -1073,18 +1084,28 @@ async def sites_page(request: Request):
 @app.get("/api/sites")
 async def list_sites():
     """List all known sites with session status and prospect counts."""
+    from sqlalchemy import func
     from src.infrastructure.site_knowledge.site_knowledge_service import SiteKnowledgeService
     from src.infrastructure.posting.session_manager import SessionManager
-    from src.infrastructure.repositories.prospect_repo import ProspectRepository
+    from src.infrastructure.models import Prospect
     session = SessionLocal()
     try:
         svc = SiteKnowledgeService(session)
         sm = SessionManager(session)
-        prospect_repo = ProspectRepository(session)
         sites = svc.get_summary()
+        domains = [s["domain"] for s in sites]
+
+        # Batched: 1 validity check pass + 1 grouped COUNT query (was N+N round trips)
+        valid_map = sm.check_validity(domains)
+        count_rows = (
+            session.query(Prospect.domain, func.count(Prospect.id))
+            .group_by(Prospect.domain)
+            .all()
+        )
+        counts = dict(count_rows)
         for s in sites:
-            s["has_session"] = sm.is_session_valid(s["domain"])
-            s["prospect_count"] = prospect_repo.count_by_domain(s["domain"])
+            s["has_session"] = valid_map.get(s["domain"], False)
+            s["prospect_count"] = counts.get(s["domain"], 0)
         return {"success": True, "sites": sites, "total": len(sites)}
     except Exception as e:
         logger.error(f"List sites failed: {e}")

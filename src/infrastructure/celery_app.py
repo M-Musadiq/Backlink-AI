@@ -34,15 +34,6 @@ app.conf.update(
 app.autodiscover_tasks(["src.infrastructure.tasks"])
 
 app.conf.beat_schedule = {
-    "discover-daily": {
-        "task": "src.infrastructure.tasks.discovery_tasks.run_discovery",
-        "schedule": crontab(hour=6, minute=0),
-        "kwargs": {
-            "keywords": [],
-            "num_per_platform": 10,
-            "generic": True,
-        },
-    },
     "guidelines-refresh-weekly": {
         "task": "src.infrastructure.tasks.evaluation_tasks.refresh_guidelines",
         "schedule": crontab(hour=2, minute=0, day_of_week=0),

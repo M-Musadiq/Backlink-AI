@@ -16,7 +16,7 @@ from src.infrastructure.repositories import (
     SessionVaultRepository,
     AuditLogRepository,
 )
-from src.infrastructure.redis_client import redis_client
+from src.legacy.redis_client import redis_client
 
 
 def test_database():
